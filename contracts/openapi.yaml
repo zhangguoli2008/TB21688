@@ -1,11 +1,11 @@
 openapi: 3.0.3
 info:
   title: SmartProcure SaaS Internal API
-  version: 0.1.0
+  version: 0.2.0
   description: >-
     本合同仅描述智采云自己的API，不代表淘宝、抖店、1688或拼多多官方API。
     所有真实平台功能默认关闭；开发只可通过Mock接口验证。
-    M0 仅实现 auth/csrf、auth/login、auth/logout、me、system/status、demo/resources。
+    M0身份/状态及M1店铺、销售订单和Mock事件路径实现；所有真实通道关闭。
     其他路径是后续里程碑的设计合同，尚未实现。
 servers:
   - url: http://localhost:8080/api/v1
@@ -180,70 +180,339 @@ paths:
         '503': {$ref: '#/components/responses/ErrorResponse'}
   /stores:
     get:
-      tags: [Stores]
+      tags:
+      - Stores
       operationId: listStores
-      summary: 当前租户已授权及Mock店铺
-      parameters:
-        - {$ref: '#/components/parameters/Limit'}
-        - {$ref: '#/components/parameters/Cursor'}
+      summary: 当前租户与店铺数据范围内的Mock店铺
       responses:
         '200':
-          description: Success
+          description: Mock operation result
           content:
             application/json:
-              schema: {$ref: '#/components/schemas/StoreListEnvelope'}
-        '403': {$ref: '#/components/responses/ErrorResponse'}
-  /stores/authorizations/start:
+              schema:
+                $ref: '#/components/schemas/StoreListEnvelope'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '409':
+          $ref: '#/components/responses/ErrorResponse'
+        '422':
+          $ref: '#/components/responses/ErrorResponse'
+        '503':
+          $ref: '#/components/responses/ErrorResponse'
+      parameters:
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/Offset'
     post:
-      tags: [Stores]
-      operationId: startStoreAuthorization
-      summary: 创建官方或Mock授权会话（不接受密码）
+      tags:
+      - Stores
+      operationId: createMockStore
+      summary: 注册Mock店铺；stores.manage；真实OAuth未开放
+      responses:
+        '200':
+          description: Mock operation result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StoreEnvelope'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '409':
+          $ref: '#/components/responses/ErrorResponse'
+        '422':
+          $ref: '#/components/responses/ErrorResponse'
+        '503':
+          $ref: '#/components/responses/ErrorResponse'
+      parameters:
+      - $ref: '#/components/parameters/CsrfToken'
+      - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              additionalProperties: false
-              required: [platform]
-              properties:
-                platform: {$ref: '#/components/schemas/SalesPlatform'}
+              $ref: '#/components/schemas/StoreCreateRequest'
+  /stores/{storeId}:
+    get:
+      tags:
+      - Stores
+      operationId: getStore
+      summary: 当前数据范围内店铺；不可见对象404
       responses:
         '200':
-          description: 允许的授权入口；真实入口必须已获批
+          description: Mock operation result
           content:
             application/json:
-              schema: {$ref: '#/components/schemas/AuthStartEnvelope'}
-        '422': {$ref: '#/components/responses/ErrorResponse'}
+              schema:
+                $ref: '#/components/schemas/StoreEnvelope'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '409':
+          $ref: '#/components/responses/ErrorResponse'
+        '422':
+          $ref: '#/components/responses/ErrorResponse'
+        '503':
+          $ref: '#/components/responses/ErrorResponse'
+      parameters:
+      - name: storeId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    patch:
+      tags:
+      - Stores
+      operationId: updateStore
+      summary: 改名/禁用/模拟授权；version CAS，重复版本409；stores.manage
+      responses:
+        '200':
+          description: Mock operation result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StoreEnvelope'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '409':
+          $ref: '#/components/responses/ErrorResponse'
+        '422':
+          $ref: '#/components/responses/ErrorResponse'
+        '503':
+          $ref: '#/components/responses/ErrorResponse'
+      parameters:
+      - name: storeId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - $ref: '#/components/parameters/CsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StoreUpdateRequest'
   /orders:
     get:
-      tags: [Orders]
+      tags:
+      - Orders
       operationId: listOrders
-      summary: 租户及店铺权限过滤后的销售订单
-      parameters:
-        - {$ref: '#/components/parameters/Limit'}
-        - {$ref: '#/components/parameters/Cursor'}
-        - {name: storeId, in: query, schema: {type: string, format: uuid}}
-        - {name: status, in: query, schema: {type: string}}
+      summary: orders.read；from含/to不含，按权威sourceUpdatedAt过滤；固定createdAt/id倒序
       responses:
         '200':
-          description: Success
+          description: Mock operation result
           content:
             application/json:
-              schema: {$ref: '#/components/schemas/OrdersEnvelope'}
+              schema:
+                $ref: '#/components/schemas/OrdersEnvelope'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '409':
+          $ref: '#/components/responses/ErrorResponse'
+        '422':
+          $ref: '#/components/responses/ErrorResponse'
+        '503':
+          $ref: '#/components/responses/ErrorResponse'
+      parameters:
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/Offset'
+      - name: storeId
+        in: query
+        schema:
+          type: string
+          format: uuid
+      - name: sourceStatus
+        in: query
+        schema:
+          type: string
+          enum:
+          - UNPAID
+          - PAID
+          - CANCELLED
+          - REFUNDING
+          - REFUNDED
+      - name: q
+        in: query
+        schema:
+          type: string
+          maxLength: 80
+          description: 精确匹配外部订单号；不支持自由全文检索
+      - name: from
+        in: query
+        schema:
+          type: string
+          format: date-time
+      - name: to
+        in: query
+        schema:
+          type: string
+          format: date-time
   /orders/{orderId}:
     get:
-      tags: [Orders]
+      tags:
+      - Orders
       operationId: getOrder
-      parameters:
-        - {$ref: '#/components/parameters/OrderId'}
+      summary: 销售子项与安全时间轴；跨租户/跨店铺范围404
       responses:
         '200':
-          description: Success
+          description: Mock operation result
           content:
             application/json:
-              schema: {$ref: '#/components/schemas/OrderEnvelope'}
-        '404': {$ref: '#/components/responses/ErrorResponse'}
+              schema:
+                $ref: '#/components/schemas/OrderEnvelope'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '409':
+          $ref: '#/components/responses/ErrorResponse'
+        '422':
+          $ref: '#/components/responses/ErrorResponse'
+        '503':
+          $ref: '#/components/responses/ErrorResponse'
+      parameters:
+      - name: orderId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+  /mock/stores/{storeId}/scenarios:
+    post:
+      tags:
+      - Orders
+      operationId: simulateSalesEvents
+      summary: 仅demo/test；orders.simulate；生成合成权威快照及签名事件；异步入库，DELAYED延迟至少2秒
+      responses:
+        '202':
+          description: Mock operation result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MockScenarioEnvelope'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '409':
+          $ref: '#/components/responses/ErrorResponse'
+        '422':
+          $ref: '#/components/responses/ErrorResponse'
+        '503':
+          $ref: '#/components/responses/ErrorResponse'
+      parameters:
+      - name: storeId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - $ref: '#/components/parameters/CsrfToken'
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MockScenarioRequest'
+  /webhooks/mock/stores/{integrationId}:
+    post:
+      tags:
+      - Orders
+      operationId: receiveMockWebhook
+      summary: 仅Mock回调；原始body最大4096字节；HMAC-SHA256 hex(timestamp + 点 + nonce + 点 + integrationId + 点 + rawBody)；时间窗过去300秒/未来30秒。相同eventId与body安全去重，同键不同body或nonce复用409。integration服务端映射租户，回调状态不可信，Worker重查权威快照。
+      responses:
+        '200':
+          description: Mock operation result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MockWebhookEnvelope'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '409':
+          $ref: '#/components/responses/ErrorResponse'
+        '422':
+          $ref: '#/components/responses/ErrorResponse'
+        '503':
+          $ref: '#/components/responses/ErrorResponse'
+      parameters:
+      - name: integrationId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: X-Mock-Timestamp
+        in: header
+        required: true
+        schema:
+          type: string
+          pattern: ^[0-9]{10}$
+      - name: X-Mock-Nonce
+        in: header
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: X-Mock-Signature
+        in: header
+        required: true
+        schema:
+          type: string
+          pattern: ^[a-f0-9]{64}$
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MockWebhookEvent'
+      security: []
   /sku-mappings:
     post:
       tags: [Sourcing]
@@ -491,6 +760,14 @@ components:
       name: limit
       in: query
       schema: {type: integer, minimum: 1, maximum: 100, default: 20}
+    Offset:
+      name: offset
+      in: query
+      schema:
+        type: integer
+        minimum: 0
+        maximum: 10000
+        default: 0
     Cursor:
       name: cursor
       in: query
@@ -540,24 +817,141 @@ components:
       enum: [TAOBAO, DOUYIN, MOCK]
     Store:
       type: object
-      required: [id, platform, externalShopId, displayName, authStatus]
+      required:
+      - id
+      - platform
+      - externalShopId
+      - displayName
+      - enabled
+      - authStatus
+      - authorizationExpiresAt
+      - integrationId
+      - version
+      - mode
       properties:
-        id: {type: string, format: uuid}
-        platform: {$ref: '#/components/schemas/SalesPlatform'}
-        externalShopId: {type: string}
-        displayName: {type: string}
-        authStatus: {type: string, enum: [PENDING, ACTIVE, EXPIRED, REVOKED]}
+        id:
+          type: string
+          format: uuid
+        platform:
+          type: string
+          enum:
+          - DOUYIN
+          - TAOBAO
+        externalShopId:
+          type: string
+          maxLength: 128
+        displayName:
+          type: string
+          maxLength: 160
+        enabled:
+          type: boolean
+        authStatus:
+          type: string
+          enum:
+          - ACTIVE
+          - EXPIRED
+          - REVOKED
+        authorizationExpiresAt:
+          type: string
+          format: date-time
+          nullable: true
+        integrationId:
+          type: string
+          format: uuid
+        version:
+          type: integer
+          format: int64
+          minimum: 0
+        mode:
+          type: string
+          enum:
+          - MOCK
+      additionalProperties: false
     SalesOrder:
       type: object
-      required: [id, storeId, externalOrderId, paidAmountFen, currency, localStatus]
+      required:
+      - id
+      - storeId
+      - storeName
+      - platform
+      - externalOrderId
+      - sourceStatus
+      - localStatus
+      - currency
+      - paidAmountFen
+      - paidAt
+      - promisedShipAt
+      - sourceUpdatedAt
+      - sourceVersion
+      - createdAt
+      - version
+      - mode
       properties:
-        id: {type: string, format: uuid}
-        storeId: {type: string, format: uuid}
-        externalOrderId: {type: string}
-        paidAmountFen: {type: integer, format: int64, minimum: 0}
-        currency: {type: string, example: CNY}
-        localStatus: {type: string}
-        promisedShipAt: {type: string, format: date-time, nullable: true}
+        id:
+          type: string
+          format: uuid
+        storeId:
+          type: string
+          format: uuid
+        storeName:
+          type: string
+        platform:
+          type: string
+          enum:
+          - DOUYIN
+          - TAOBAO
+        externalOrderId:
+          type: string
+        sourceStatus:
+          type: string
+          enum:
+          - UNPAID
+          - PAID
+          - CANCELLED
+          - REFUNDING
+          - REFUNDED
+        localStatus:
+          type: string
+          enum:
+          - NEW
+          - VERIFIED_PAID
+          - CANCELLED
+          - SUSPENDED
+        currency:
+          type: string
+          enum:
+          - CNY
+        paidAmountFen:
+          type: integer
+          format: int64
+          minimum: 0
+        paidAt:
+          type: string
+          format: date-time
+          nullable: true
+        promisedShipAt:
+          type: string
+          format: date-time
+          nullable: true
+        sourceUpdatedAt:
+          type: string
+          format: date-time
+        sourceVersion:
+          type: integer
+          format: int64
+          minimum: 1
+        createdAt:
+          type: string
+          format: date-time
+        version:
+          type: integer
+          format: int64
+          minimum: 0
+        mode:
+          type: string
+          enum:
+          - MOCK
+      additionalProperties: false
     PurchaseIntent:
       type: object
       required: [id, salesOrderItemId, qty, state]
@@ -675,13 +1069,38 @@ components:
         requestId: {type: string, format: uuid}
     StoreListEnvelope:
       type: object
+      required:
+      - data
+      - requestId
       properties:
         data:
           type: object
+          required:
+          - items
+          - total
+          - limit
+          - offset
           properties:
-            items: {type: array, items: {$ref: '#/components/schemas/Store'}}
-            page: {$ref: '#/components/schemas/PageMeta'}
-        requestId: {type: string}
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/Store'
+            total:
+              type: integer
+              minimum: 0
+            limit:
+              type: integer
+              minimum: 1
+              maximum: 100
+            offset:
+              type: integer
+              minimum: 0
+              maximum: 10000
+          additionalProperties: false
+        requestId:
+          type: string
+          format: uuid
+      additionalProperties: false
     AuthStartEnvelope:
       type: object
       properties:
@@ -693,18 +1112,50 @@ components:
         requestId: {type: string}
     OrdersEnvelope:
       type: object
+      required:
+      - data
+      - requestId
       properties:
         data:
           type: object
+          required:
+          - items
+          - total
+          - limit
+          - offset
           properties:
-            items: {type: array, items: {$ref: '#/components/schemas/SalesOrder'}}
-            page: {$ref: '#/components/schemas/PageMeta'}
-        requestId: {type: string}
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/SalesOrder'
+            total:
+              type: integer
+              minimum: 0
+            limit:
+              type: integer
+              minimum: 1
+              maximum: 100
+            offset:
+              type: integer
+              minimum: 0
+              maximum: 10000
+          additionalProperties: false
+        requestId:
+          type: string
+          format: uuid
+      additionalProperties: false
     OrderEnvelope:
       type: object
+      required:
+      - data
+      - requestId
       properties:
-        data: {$ref: '#/components/schemas/SalesOrder'}
-        requestId: {type: string}
+        data:
+          $ref: '#/components/schemas/SalesOrderDetail'
+        requestId:
+          type: string
+          format: uuid
+      additionalProperties: false
     MappingEnvelope:
       type: object
       properties:
@@ -803,3 +1254,323 @@ components:
             items: {type: array, items: {$ref: '#/components/schemas/Audit'}}
             page: {$ref: '#/components/schemas/PageMeta'}
         requestId: {type: string}
+    StoreCreateRequest:
+      type: object
+      required:
+      - platform
+      - externalShopId
+      - displayName
+      properties:
+        platform:
+          type: string
+          enum:
+          - DOUYIN
+          - TAOBAO
+        externalShopId:
+          type: string
+          minLength: 1
+          maxLength: 128
+          pattern: ^[A-Za-z0-9_-]+$
+        displayName:
+          type: string
+          minLength: 1
+          maxLength: 160
+      additionalProperties: false
+    StoreUpdateRequest:
+      type: object
+      required:
+      - version
+      properties:
+        version:
+          type: integer
+          format: int64
+          minimum: 0
+        displayName:
+          type: string
+          minLength: 1
+          maxLength: 160
+        enabled:
+          type: boolean
+        authStatus:
+          type: string
+          enum:
+          - ACTIVE
+          - EXPIRED
+          - REVOKED
+      additionalProperties: false
+    StoreEnvelope:
+      type: object
+      required:
+      - data
+      - requestId
+      properties:
+        data:
+          $ref: '#/components/schemas/Store'
+        requestId:
+          type: string
+          format: uuid
+      additionalProperties: false
+    SalesOrderItem:
+      type: object
+      required:
+      - id
+      - externalItemId
+      - externalSkuId
+      - title
+      - qty
+      - paidAllocatedFen
+      - cancelledQty
+      - fulfilledQty
+      properties:
+        id:
+          type: string
+          format: uuid
+        externalItemId:
+          type: string
+        externalSkuId:
+          type: string
+        title:
+          type: string
+        qty:
+          type: integer
+          minimum: 1
+        paidAllocatedFen:
+          type: integer
+          format: int64
+          minimum: 0
+        cancelledQty:
+          type: integer
+          minimum: 0
+        fulfilledQty:
+          type: integer
+          minimum: 0
+      additionalProperties: false
+    OrderTimelineEntry:
+      type: object
+      required:
+      - id
+      - eventId
+      - action
+      - sourceVersion
+      - occurredAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        eventId:
+          type: string
+        action:
+          type: string
+        sourceVersion:
+          type: integer
+          format: int64
+          minimum: 1
+        occurredAt:
+          type: string
+          format: date-time
+      additionalProperties: false
+    SalesOrderDetail:
+      type: object
+      required:
+      - id
+      - storeId
+      - storeName
+      - platform
+      - externalOrderId
+      - sourceStatus
+      - localStatus
+      - currency
+      - paidAmountFen
+      - paidAt
+      - promisedShipAt
+      - sourceUpdatedAt
+      - sourceVersion
+      - createdAt
+      - version
+      - mode
+      - items
+      - timeline
+      properties:
+        id:
+          type: string
+          format: uuid
+        storeId:
+          type: string
+          format: uuid
+        storeName:
+          type: string
+        platform:
+          type: string
+          enum:
+          - DOUYIN
+          - TAOBAO
+        externalOrderId:
+          type: string
+        sourceStatus:
+          type: string
+          enum:
+          - UNPAID
+          - PAID
+          - CANCELLED
+          - REFUNDING
+          - REFUNDED
+        localStatus:
+          type: string
+          enum:
+          - NEW
+          - VERIFIED_PAID
+          - CANCELLED
+          - SUSPENDED
+        currency:
+          type: string
+          enum:
+          - CNY
+        paidAmountFen:
+          type: integer
+          format: int64
+          minimum: 0
+        paidAt:
+          type: string
+          format: date-time
+          nullable: true
+        promisedShipAt:
+          type: string
+          format: date-time
+          nullable: true
+        sourceUpdatedAt:
+          type: string
+          format: date-time
+        sourceVersion:
+          type: integer
+          format: int64
+          minimum: 1
+        createdAt:
+          type: string
+          format: date-time
+        version:
+          type: integer
+          format: int64
+          minimum: 0
+        mode:
+          type: string
+          enum:
+          - MOCK
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/SalesOrderItem'
+        timeline:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderTimelineEntry'
+      additionalProperties: false
+    MockScenarioRequest:
+      type: object
+      required:
+      - scenario
+      - externalOrderId
+      properties:
+        scenario:
+          type: string
+          enum:
+          - PAID
+          - DUPLICATE
+          - OUT_OF_ORDER
+          - DELAYED
+          - REFUNDED
+        externalOrderId:
+          type: string
+          minLength: 1
+          maxLength: 80
+          pattern: ^[A-Za-z0-9_-]+$
+      additionalProperties: false
+    MockScenarioResult:
+      type: object
+      required:
+      - scenario
+      - externalOrderId
+      - acceptedEvents
+      - mode
+      properties:
+        scenario:
+          type: string
+          enum:
+          - PAID
+          - DUPLICATE
+          - OUT_OF_ORDER
+          - DELAYED
+          - REFUNDED
+        externalOrderId:
+          type: string
+        acceptedEvents:
+          type: integer
+          minimum: 1
+        mode:
+          type: string
+          enum:
+          - MOCK
+      additionalProperties: false
+    MockScenarioEnvelope:
+      type: object
+      required:
+      - data
+      - requestId
+      properties:
+        data:
+          $ref: '#/components/schemas/MockScenarioResult'
+        requestId:
+          type: string
+          format: uuid
+      additionalProperties: false
+    MockWebhookEvent:
+      type: object
+      required:
+      - eventId
+      - externalOrderId
+      - sourceVersion
+      - eventOccurredAt
+      properties:
+        eventId:
+          type: string
+          minLength: 1
+          maxLength: 128
+          pattern: ^[A-Za-z0-9_-]+$
+        externalOrderId:
+          type: string
+          minLength: 1
+          maxLength: 80
+          pattern: ^[A-Za-z0-9_-]+$
+        sourceVersion:
+          type: integer
+          format: int64
+          minimum: 1
+        eventOccurredAt:
+          type: string
+          format: date-time
+      additionalProperties: false
+    MockWebhookEnvelope:
+      type: object
+      required:
+      - data
+      - requestId
+      properties:
+        data:
+          type: object
+          required:
+          - eventId
+          - duplicate
+          - mode
+          properties:
+            eventId:
+              type: string
+            duplicate:
+              type: boolean
+            mode:
+              type: string
+              enum:
+              - MOCK
+          additionalProperties: false
+        requestId:
+          type: string
+          format: uuid
+      additionalProperties: false
