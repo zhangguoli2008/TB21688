@@ -137,18 +137,18 @@ class M0SecurityIT {
                 .contentType("application/json").content("{\"persona\":\"ADMIN\"}"))
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
         mvc.perform(get("/api/v1/demo/resources/not-a-uuid").session(user.session())).andExpect(status().isBadRequest());
-        mvc.perform(get("/api/v1/orders").session(user.session())).andExpect(status().isNotFound());
+        mvc.perform(get("/api/v1/orders").session(user.session())).andExpect(status().isOk());
         mvc.perform(put("/api/v1/me").session(user.session()).header("X-CSRF-TOKEN", user.csrf()))
                 .andExpect(status().isMethodNotAllowed()).andExpect(jsonPath("$.code").value("METHOD_NOT_ALLOWED"));
     }
-    @Test void migratedSchemaAndSeedCanRepeatWithoutCreatingBusinessData() {
+    @Test void migratedSchemaAndSeedCanRepeatWithOnlySyntheticStoresAndNoPayments() {
         assertThat(flyway.migrate().migrationsExecuted).isZero();
-        var populator = new ResourceDatabasePopulator(new ClassPathResource("db/demo/seed.sql"));
+        var populator = new ResourceDatabasePopulator(new ClassPathResource("db/demo/seed.sql"),new ClassPathResource("db/demo/m1-seed.sql"));
         populator.execute(jdbc.getDataSource());
         populator.execute(jdbc.getDataSource());
         assertThat(jdbc.queryForObject("select count(*) from tenants", Integer.class)).isEqualTo(2);
         assertThat(jdbc.queryForObject("select count(*) from users", Integer.class)).isEqualTo(3);
-        assertThat(jdbc.queryForObject("select count(*) from stores", Integer.class)).isZero();
+        assertThat(jdbc.queryForObject("select count(*) from stores", Integer.class)).isGreaterThanOrEqualTo(4);
         assertThat(jdbc.queryForObject("select count(*) from payment_attempts", Integer.class)).isZero();
         assertThatThrownBy(() -> jdbc.update("insert into users(email,password_hash) values ('OWNER.A@EXAMPLE.INVALID','!disabled')"))
                 .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);

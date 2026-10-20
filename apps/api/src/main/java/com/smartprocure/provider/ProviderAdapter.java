@@ -6,7 +6,7 @@ import java.util.Set;
 
 /** Internal Mock boundary. No official external API or commerce workflow is implemented in M0. */
 public interface ProviderAdapter {
-    enum Capability { DEMO_PROBE }
+    enum Capability { DEMO_PROBE, MOCK_ORDER_READ }
     record Probe(String provider, String mode, Set<Capability> capabilities, Instant observedAt) { }
     String provider();
     Set<Capability> capabilities();

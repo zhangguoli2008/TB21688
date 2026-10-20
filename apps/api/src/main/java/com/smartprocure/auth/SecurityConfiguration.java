@@ -12,6 +12,7 @@ import org.springframework.security.web.csrf.CsrfFilter;
 import org.springframework.security.web.context.NullSecurityContextRepository;
 import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 import org.springframework.security.web.csrf.HttpSessionCsrfTokenRepository;
+import org.springframework.http.HttpMethod;
 
 @Configuration
 public class SecurityConfiguration {
@@ -21,7 +22,8 @@ public class SecurityConfiguration {
         return repository;
     }
     @Bean SecurityFilterChain security(HttpSecurity http, ApiErrors errors, TenantIdentityRepository identities, RealChannelGuard guard, AuditService audit, HttpSessionCsrfTokenRepository csrf) throws Exception {
-        http.csrf(config -> config.csrfTokenRepository(csrf).csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler()))
+        http.csrf(config -> config.csrfTokenRepository(csrf).csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler())
+                        .ignoringRequestMatchers("/api/v1/webhooks/mock/stores/*"))
                 .securityContext(config -> config.securityContextRepository(new NullSecurityContextRepository()))
                 .requestCache(config -> config.disable())
                 .formLogin(config -> config.disable()).httpBasic(config -> config.disable()).logout(config -> config.disable())
@@ -30,10 +32,17 @@ public class SecurityConfiguration {
                         .accessDeniedHandler((request, response, ex) -> errors.write(request, response, 403, "FORBIDDEN", "权限不足或CSRF校验失败")))
                 .authorizeHttpRequests(config -> {
                     config.requestMatchers("/error", "/api/v1/auth/csrf", "/api/v1/auth/login", "/actuator/health/liveness").permitAll();
+                    config.requestMatchers(HttpMethod.POST,"/api/v1/webhooks/mock/stores/*").permitAll();
                     if (guard.demoEnabled()) { config.requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/contracts/openapi.yaml").permitAll(); }
                     else { config.requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/contracts/**", "/v3/api-docs/**").denyAll(); }
                     config.requestMatchers("/api/v1/system/status").hasAuthority("system.read")
                             .requestMatchers("/api/v1/demo/**").hasAuthority("demo.read")
+                            .requestMatchers(HttpMethod.GET,"/api/v1/stores","/api/v1/stores/*").hasAuthority("stores.read")
+                            .requestMatchers(HttpMethod.POST,"/api/v1/stores").hasAuthority("stores.manage")
+                            .requestMatchers(HttpMethod.PATCH,"/api/v1/stores/*").hasAuthority("stores.manage")
+                            .requestMatchers(HttpMethod.GET,"/api/v1/orders","/api/v1/orders/*").hasAuthority("orders.read")
+                            .requestMatchers(HttpMethod.POST,"/api/v1/mock/stores/*/scenarios").hasAuthority("orders.simulate")
+                            .requestMatchers(HttpMethod.PUT,"/api/v1/payment-policy").hasAuthority("paymentPolicy.manage")
                             .anyRequest().authenticated();
                 })
                 .addFilterBefore(new SessionIdentityFilter(identities, guard, errors, audit), CsrfFilter.class);

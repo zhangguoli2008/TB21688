@@ -14,4 +14,11 @@ public class AuditService {
                 principal == null ? null : principal.currentTenantId(), principal == null ? null : principal.userId(),
                 action, requestId, status < 400 ? "SUCCESS" : "DENIED", status);
     }
+    /** M1 fixed business actions. Never persist request bodies or exception messages. */
+    public void object(java.util.UUID tenant,java.util.UUID actor,String action,String entityType,java.util.UUID entityId) {
+        jdbc.update("insert into audit_logs(tenant_id,actor_user_id,action,entity_type,entity_id,redacted_details) values(?,?,?,?,?,'{}'::jsonb)",tenant,actor,action,entityType,entityId);
+    }
+    public void storeState(java.util.UUID tenant,java.util.UUID actor,String action,java.util.UUID store,long version,boolean enabled,String authStatus) {
+        jdbc.update("insert into audit_logs(tenant_id,actor_user_id,action,entity_type,entity_id,redacted_details) values(?,?,?,'STORE',?,jsonb_build_object('version',?::bigint,'enabled',?::boolean,'authStatus',?::text))",tenant,actor,action,store,version,enabled,authStatus);
+    }
 }

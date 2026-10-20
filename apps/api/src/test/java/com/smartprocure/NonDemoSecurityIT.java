@@ -41,4 +41,12 @@ class NonDemoSecurityIT {
             mvc.perform(get(route)).andExpect(status().is4xxClientError());
         }
     }
+    @Test void mockWebhookIsUnavailableOutsideDemoEvenWithHeaders() throws Exception {
+        mvc.perform(post("/api/v1/webhooks/mock/stores/11111111-1111-4111-8111-111111111111")
+                .header("X-Mock-Timestamp",Long.toString(java.time.Instant.now().getEpochSecond()))
+                .header("X-Mock-Nonce",java.util.UUID.randomUUID().toString()).header("X-Mock-Signature","00".repeat(32))
+                .contentType("application/json").content("{}"))
+                .andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("NOT_FOUND"));
+        assertThat(jdbc.queryForObject("select count(*) from inbox_events",Integer.class)).isZero();
+    }
 }

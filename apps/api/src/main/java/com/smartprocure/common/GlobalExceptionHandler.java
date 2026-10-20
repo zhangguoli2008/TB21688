@@ -17,7 +17,7 @@ public class GlobalExceptionHandler {
     public GlobalExceptionHandler(ApiErrors errors) { this.errors = errors; }
     @ExceptionHandler(ApiException.class)
     ResponseEntity<ApiErrors.ErrorBody> domain(ApiException ex, HttpServletRequest request) { return response(request, ex.status(), ex.code(), ex.getMessage()); }
-    @ExceptionHandler({MethodArgumentNotValidException.class, HttpMessageNotReadableException.class, MethodArgumentTypeMismatchException.class})
+    @ExceptionHandler({MethodArgumentNotValidException.class, HttpMessageNotReadableException.class, MethodArgumentTypeMismatchException.class,org.springframework.web.bind.MissingRequestHeaderException.class})
     ResponseEntity<ApiErrors.ErrorBody> invalid(Exception ex, HttpServletRequest request) { return response(request, 400, "VALIDATION_ERROR", "请求参数无效"); }
     @ExceptionHandler({NoResourceFoundException.class, NoHandlerFoundException.class})
     ResponseEntity<ApiErrors.ErrorBody> missing(Exception ex, HttpServletRequest request) { return response(request, 404, "NOT_FOUND", "资源不存在"); }
