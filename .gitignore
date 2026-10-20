@@ -1,0 +1,16 @@
+.DS_Store
+SmartProcure_Codex_Starter_2026-10-20/
+*.zip
+.env
+.env.*
+!.env.example
+**/node_modules/
+**/dist/
+**/target/
+**/coverage/
+**/test-results/
+**/playwright-report/
+.local/
+.idea/
+.vscode/
+*.log

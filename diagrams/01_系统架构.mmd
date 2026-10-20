@@ -1,0 +1,13 @@
+flowchart TB
+  Seller[商家Web后台 Vue3] --> Gateway[HTTPS Gateway]
+  Gateway --> API[Spring Boot API 模块化单体]
+  API --> PG[(PostgreSQL)]
+  API --> Redis[(Redis)]
+  API --> MQ[(RabbitMQ)]
+  MQ --> Worker[独立Worker]
+  Worker --> AD[Provider Adapter Layer]
+  AD --> Mock[Mock Providers]
+  AD -.审批后.-> Douyin[抖店官方API]
+  AD -.审批后.-> Taobao[淘宝官方API]
+  AD -.审批后.-> A1688[1688官方分销/支付通道]
+  AD -.合作渠道待证实.-> PDD[拼多多受控适配器]

@@ -1,0 +1,645 @@
+openapi: 3.0.3
+info:
+  title: SmartProcure SaaS Internal API (design contract)
+  version: 1.0.0-draft
+  description: >-
+    本合同仅描述智采云自己的API，不代表淘宝、抖店、1688或拼多多官方API。
+    所有真实平台功能默认关闭；开发只可通过Mock接口验证。
+servers:
+  - url: http://localhost:8080/api/v1
+    description: 本地Mock环境
+security:
+  - BearerAuth: []
+tags:
+  - name: Me
+  - name: Stores
+  - name: Orders
+  - name: Sourcing
+  - name: Purchases
+  - name: Payments
+  - name: Shipping
+  - name: Aftersales
+  - name: Reports
+  - name: Audit
+paths:
+  /me:
+    get:
+      tags: [Me]
+      operationId: getMe
+      summary: 当前用户及可访问租户
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/MeEnvelope'}
+        '401': {$ref: '#/components/responses/ErrorResponse'}
+  /stores:
+    get:
+      tags: [Stores]
+      operationId: listStores
+      summary: 当前租户已授权及Mock店铺
+      parameters:
+        - {$ref: '#/components/parameters/Limit'}
+        - {$ref: '#/components/parameters/Cursor'}
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/StoreListEnvelope'}
+        '403': {$ref: '#/components/responses/ErrorResponse'}
+  /stores/authorizations/start:
+    post:
+      tags: [Stores]
+      operationId: startStoreAuthorization
+      summary: 创建官方或Mock授权会话（不接受密码）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [platform]
+              properties:
+                platform: {$ref: '#/components/schemas/SalesPlatform'}
+      responses:
+        '200':
+          description: 允许的授权入口；真实入口必须已获批
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AuthStartEnvelope'}
+        '422': {$ref: '#/components/responses/ErrorResponse'}
+  /orders:
+    get:
+      tags: [Orders]
+      operationId: listOrders
+      summary: 租户及店铺权限过滤后的销售订单
+      parameters:
+        - {$ref: '#/components/parameters/Limit'}
+        - {$ref: '#/components/parameters/Cursor'}
+        - {name: storeId, in: query, schema: {type: string, format: uuid}}
+        - {name: status, in: query, schema: {type: string}}
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/OrdersEnvelope'}
+  /orders/{orderId}:
+    get:
+      tags: [Orders]
+      operationId: getOrder
+      parameters:
+        - {$ref: '#/components/parameters/OrderId'}
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/OrderEnvelope'}
+        '404': {$ref: '#/components/responses/ErrorResponse'}
+  /sku-mappings:
+    post:
+      tags: [Sourcing]
+      operationId: upsertSkuMapping
+      summary: 创建/确认一个销售SKU到供应商SKU映射
+      parameters:
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/MappingCreateRequest'}
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/MappingEnvelope'}
+        '403': {$ref: '#/components/responses/ErrorResponse'}
+        '409': {$ref: '#/components/responses/ErrorResponse'}
+  /purchase-intents:
+    get:
+      tags: [Purchases]
+      operationId: listPurchaseIntents
+      parameters:
+        - {$ref: '#/components/parameters/Limit'}
+        - {$ref: '#/components/parameters/Cursor'}
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/IntentsEnvelope'}
+  /purchase-intents/{intentId}/approve:
+    post:
+      tags: [Purchases]
+      operationId: approvePurchaseIntent
+      summary: 商家人工审核采购意图，不意味着扣款
+      parameters:
+        - {$ref: '#/components/parameters/IntentId'}
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/IntentEnvelope'}
+        '409': {$ref: '#/components/responses/ErrorResponse'}
+  /purchase-intents/{intentId}/submit:
+    post:
+      tags: [Purchases]
+      operationId: submitPurchaseIntent
+      summary: 异步提交采购任务，不同步发起真实付款
+      parameters:
+        - {$ref: '#/components/parameters/IntentId'}
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      responses:
+        '202':
+          description: 已接受异步任务
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/JobEnvelope'}
+        '409': {$ref: '#/components/responses/ErrorResponse'}
+        '422': {$ref: '#/components/responses/ErrorResponse'}
+  /purchases:
+    get:
+      tags: [Purchases]
+      operationId: listPurchases
+      parameters:
+        - {$ref: '#/components/parameters/Limit'}
+        - {$ref: '#/components/parameters/Cursor'}
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/PurchasesEnvelope'}
+  /payment-policy:
+    get:
+      tags: [Payments]
+      operationId: getPaymentPolicy
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/PolicyEnvelope'}
+    put:
+      tags: [Payments]
+      operationId: updatePaymentPolicy
+      summary: 修改付款策略；服务端审计且受权限/MFA保护
+      parameters:
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/PaymentPolicy'}
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/PolicyEnvelope'}
+        '403': {$ref: '#/components/responses/ErrorResponse'}
+  /payment-mandates:
+    get:
+      tags: [Payments]
+      operationId: listPaymentMandates
+      summary: 仅返回安全的签约状态摘要，不暴露秘钥
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/MandatesEnvelope'}
+  /purchases/{purchaseId}/checkout-entry:
+    post:
+      tags: [Payments]
+      operationId: getOfficialCheckoutEntry
+      summary: 创建或获取允许的官方付款入口；UNKNOWN状态禁止
+      parameters:
+        - {$ref: '#/components/parameters/PurchaseId'}
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      responses:
+        '200':
+          description: 官方平台付款入口或Mock专用入口
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CheckoutEnvelope'}
+        '409': {$ref: '#/components/responses/ErrorResponse'}
+        '422': {$ref: '#/components/responses/ErrorResponse'}
+  /purchases/{purchaseId}/payment-status:
+    get:
+      tags: [Payments]
+      operationId: getPaymentStatus
+      summary: 查已验证的本地/上游权威支付状态摘要
+      parameters:
+        - {$ref: '#/components/parameters/PurchaseId'}
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/PaymentStatusEnvelope'}
+  /purchases/{purchaseId}/cancel-request:
+    post:
+      tags: [Purchases]
+      operationId: requestPurchaseCancel
+      summary: 只代表申请取消，不代表上游退款完成
+      parameters:
+        - {$ref: '#/components/parameters/PurchaseId'}
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      responses:
+        '202':
+          description: accepted
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/JobEnvelope'}
+  /shipments:
+    get:
+      tags: [Shipping]
+      operationId: listShipments
+      parameters:
+        - {$ref: '#/components/parameters/Limit'}
+        - {$ref: '#/components/parameters/Cursor'}
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ShipmentsEnvelope'}
+  /aftersales:
+    get:
+      tags: [Aftersales]
+      operationId: listAftersales
+      parameters:
+        - {$ref: '#/components/parameters/Limit'}
+        - {$ref: '#/components/parameters/Cursor'}
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AftersalesEnvelope'}
+  /reports/overview:
+    get:
+      tags: [Reports]
+      operationId: getOverviewReport
+      parameters:
+        - {name: from, in: query, schema: {type: string, format: date}}
+        - {name: to, in: query, schema: {type: string, format: date}}
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ReportEnvelope'}
+  /audit-logs:
+    get:
+      tags: [Audit]
+      operationId: listAuditLogs
+      parameters:
+        - {$ref: '#/components/parameters/Limit'}
+        - {$ref: '#/components/parameters/Cursor'}
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AuditEnvelope'}
+  /webhooks/{platform}:
+    post:
+      tags: [Stores]
+      security: []
+      operationId: receiveProviderWebhook
+      summary: 独立验签/防重放；不代表已拥有平台生产授权
+      parameters:
+        - name: platform
+          in: path
+          required: true
+          schema: {type: string, enum: [TAOBAO, DOUYIN, MOCK]}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {type: object, additionalProperties: true}
+      responses:
+        '202': {description: 消息已接受，异步处理}
+        '401': {$ref: '#/components/responses/ErrorResponse'}
+        '409': {$ref: '#/components/responses/ErrorResponse'}
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    Limit:
+      name: limit
+      in: query
+      schema: {type: integer, minimum: 1, maximum: 100, default: 20}
+    Cursor:
+      name: cursor
+      in: query
+      schema: {type: string}
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema: {type: string, minLength: 8, maxLength: 160}
+    OrderId:
+      name: orderId
+      in: path
+      required: true
+      schema: {type: string, format: uuid}
+    IntentId:
+      name: intentId
+      in: path
+      required: true
+      schema: {type: string, format: uuid}
+    PurchaseId:
+      name: purchaseId
+      in: path
+      required: true
+      schema: {type: string, format: uuid}
+  responses:
+    ErrorResponse:
+      description: Structured failure
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ApiError'}
+  schemas:
+    ApiError:
+      type: object
+      required: [code, message, requestId]
+      properties:
+        code: {type: string}
+        message: {type: string}
+        requestId: {type: string}
+        details: {type: object, additionalProperties: true}
+    PageMeta:
+      type: object
+      required: [nextCursor]
+      properties:
+        nextCursor: {type: string, nullable: true}
+    SalesPlatform:
+      type: string
+      enum: [TAOBAO, DOUYIN, MOCK]
+    Store:
+      type: object
+      required: [id, platform, externalShopId, displayName, authStatus]
+      properties:
+        id: {type: string, format: uuid}
+        platform: {$ref: '#/components/schemas/SalesPlatform'}
+        externalShopId: {type: string}
+        displayName: {type: string}
+        authStatus: {type: string, enum: [PENDING, ACTIVE, EXPIRED, REVOKED]}
+    SalesOrder:
+      type: object
+      required: [id, storeId, externalOrderId, paidAmountFen, currency, localStatus]
+      properties:
+        id: {type: string, format: uuid}
+        storeId: {type: string, format: uuid}
+        externalOrderId: {type: string}
+        paidAmountFen: {type: integer, format: int64, minimum: 0}
+        currency: {type: string, example: CNY}
+        localStatus: {type: string}
+        promisedShipAt: {type: string, format: date-time, nullable: true}
+    PurchaseIntent:
+      type: object
+      required: [id, salesOrderItemId, qty, state]
+      properties:
+        id: {type: string, format: uuid}
+        salesOrderItemId: {type: string, format: uuid}
+        qty: {type: integer, minimum: 1}
+        estimatedTotalFen: {type: integer, format: int64, nullable: true}
+        state: {type: string}
+    Purchase:
+      type: object
+      required: [id, purchaseIntentId, state, currency]
+      properties:
+        id: {type: string, format: uuid}
+        purchaseIntentId: {type: string, format: uuid}
+        externalOrderId: {type: string, nullable: true}
+        state: {type: string}
+        totalFen: {type: integer, format: int64, nullable: true}
+        currency: {type: string}
+    PaymentPolicy:
+      type: object
+      required: [mode, maxSingleFen, maxDailyFen, minEstimatedProfitFen, isPaused]
+      properties:
+        mode: {type: string, enum: [MANUAL, AUTO, RULE_BASED]}
+        maxSingleFen: {type: integer, format: int64, minimum: 0}
+        maxDailyFen: {type: integer, format: int64, minimum: 0}
+        minEstimatedProfitFen: {type: integer, format: int64}
+        isPaused: {type: boolean}
+    PaymentMandateSummary:
+      type: object
+      required: [id, supplierAccountId, status]
+      properties:
+        id: {type: string, format: uuid}
+        supplierAccountId: {type: string, format: uuid}
+        status: {type: string, enum: [PENDING, ACTIVE, REVOKED, EXPIRED]}
+        expiresAt: {type: string, format: date-time, nullable: true}
+    PaymentStatus:
+      type: object
+      required: [purchaseId, state, updatedAt]
+      properties:
+        purchaseId: {type: string, format: uuid}
+        state: {type: string, enum: [NEW, WAIT_MERCHANT_PAYMENT, PAYING, UNKNOWN, PAID, FAILED]}
+        updatedAt: {type: string, format: date-time}
+        lastVerifiedAt: {type: string, format: date-time, nullable: true}
+    MappingCreateRequest:
+      type: object
+      required: [storeId, salesSkuId, supplierOfferId, confirmed]
+      properties:
+        storeId: {type: string, format: uuid}
+        salesSkuId: {type: string}
+        supplierOfferId: {type: string, format: uuid}
+        confirmed: {type: boolean}
+    Mapping:
+      type: object
+      required: [id, status]
+      properties:
+        id: {type: string, format: uuid}
+        status: {type: string, enum: [REVIEW, CONFIRMED, PAUSED]}
+    Shipment:
+      type: object
+      required: [id, purchaseOrderId, state]
+      properties:
+        id: {type: string, format: uuid}
+        purchaseOrderId: {type: string, format: uuid}
+        carrierCode: {type: string, nullable: true}
+        trackingNumberMasked: {type: string, nullable: true}
+        state: {type: string}
+    Aftersale:
+      type: object
+      required: [id, salesOrderId, state, type]
+      properties:
+        id: {type: string, format: uuid}
+        salesOrderId: {type: string, format: uuid}
+        state: {type: string}
+        type: {type: string}
+    Audit:
+      type: object
+      required: [id, action, createdAt]
+      properties:
+        id: {type: string, format: uuid}
+        action: {type: string}
+        createdAt: {type: string, format: date-time}
+        actorId: {type: string, format: uuid, nullable: true}
+    Report:
+      type: object
+      required: [salesPaidFen, estimatedPurchaseFen, estimatedProfitFen, orderCount, currency]
+      properties:
+        salesPaidFen: {type: integer, format: int64}
+        estimatedPurchaseFen: {type: integer, format: int64}
+        estimatedProfitFen: {type: integer, format: int64}
+        orderCount: {type: integer}
+        currency: {type: string}
+    MeEnvelope:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            userId: {type: string, format: uuid}
+            email: {type: string, format: email}
+            tenantIds:
+              type: array
+              items: {type: string, format: uuid}
+        requestId: {type: string}
+    StoreListEnvelope:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            items: {type: array, items: {$ref: '#/components/schemas/Store'}}
+            page: {$ref: '#/components/schemas/PageMeta'}
+        requestId: {type: string}
+    AuthStartEnvelope:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            authorizationUrl: {type: string, format: uri}
+            mode: {type: string, enum: [MOCK, OFFICIAL]}
+        requestId: {type: string}
+    OrdersEnvelope:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            items: {type: array, items: {$ref: '#/components/schemas/SalesOrder'}}
+            page: {$ref: '#/components/schemas/PageMeta'}
+        requestId: {type: string}
+    OrderEnvelope:
+      type: object
+      properties:
+        data: {$ref: '#/components/schemas/SalesOrder'}
+        requestId: {type: string}
+    MappingEnvelope:
+      type: object
+      properties:
+        data: {$ref: '#/components/schemas/Mapping'}
+        requestId: {type: string}
+    IntentsEnvelope:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            items: {type: array, items: {$ref: '#/components/schemas/PurchaseIntent'}}
+            page: {$ref: '#/components/schemas/PageMeta'}
+        requestId: {type: string}
+    IntentEnvelope:
+      type: object
+      properties:
+        data: {$ref: '#/components/schemas/PurchaseIntent'}
+        requestId: {type: string}
+    PurchasesEnvelope:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            items: {type: array, items: {$ref: '#/components/schemas/Purchase'}}
+            page: {$ref: '#/components/schemas/PageMeta'}
+        requestId: {type: string}
+    PolicyEnvelope:
+      type: object
+      properties:
+        data: {$ref: '#/components/schemas/PaymentPolicy'}
+        requestId: {type: string}
+    MandatesEnvelope:
+      type: object
+      properties:
+        data:
+          type: array
+          items: {$ref: '#/components/schemas/PaymentMandateSummary'}
+        requestId: {type: string}
+    CheckoutEnvelope:
+      type: object
+      properties:
+        data:
+          type: object
+          required: [mode, expiresAt]
+          properties:
+            mode: {type: string, enum: [MOCK, OFFICIAL]}
+            checkoutUrl: {type: string, format: uri, nullable: true}
+            expiresAt: {type: string, format: date-time}
+        requestId: {type: string}
+    PaymentStatusEnvelope:
+      type: object
+      properties:
+        data: {$ref: '#/components/schemas/PaymentStatus'}
+        requestId: {type: string}
+    JobEnvelope:
+      type: object
+      properties:
+        data:
+          type: object
+          required: [jobId, state]
+          properties:
+            jobId: {type: string, format: uuid}
+            state: {type: string, enum: [QUEUED, REJECTED]}
+        requestId: {type: string}
+    ShipmentsEnvelope:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            items: {type: array, items: {$ref: '#/components/schemas/Shipment'}}
+            page: {$ref: '#/components/schemas/PageMeta'}
+        requestId: {type: string}
+    AftersalesEnvelope:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            items: {type: array, items: {$ref: '#/components/schemas/Aftersale'}}
+            page: {$ref: '#/components/schemas/PageMeta'}
+        requestId: {type: string}
+    ReportEnvelope:
+      type: object
+      properties:
+        data: {$ref: '#/components/schemas/Report'}
+        requestId: {type: string}
+    AuditEnvelope:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            items: {type: array, items: {$ref: '#/components/schemas/Audit'}}
+            page: {$ref: '#/components/schemas/PageMeta'}
+        requestId: {type: string}

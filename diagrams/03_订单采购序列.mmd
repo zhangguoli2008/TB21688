@@ -1,0 +1,30 @@
+sequenceDiagram
+    participant C as 淘宝/抖音Mock事件
+    participant O as 订单服务
+    participant S as SKU规则引擎
+    participant P as 采购Worker
+    participant A as SupplierAdapter
+    participant PAY as 支付编排器
+    participant L as 物流服务
+    C->>O: 订单付款事件
+    O->>O: 验签/去重/查单
+    O->>S: 已付订单子项
+    S->>S: SKU映射/报价/利润/密文门禁
+    S-->>P: 创建采购意图 Outbox
+    P->>A: 创建采购订单（幂等）
+    A-->>P: 上游订单ID
+    P->>PAY: 创建付款需求
+    alt 具备签约且规则允许
+        PAY->>A: 经过授权的自动支付
+        A-->>PAY: 状态待权威确认
+    else 人工确认
+        PAY-->>O: 等待商家官方收银台付款
+    end
+    PAY->>A: 查支付权威状态
+    A-->>PAY: PAID/FAILED/UNKNOWN
+    alt PAID
+        A-->>L: 供应商发货事件
+        L->>C: 经许可的发货回填
+    else UNKNOWN
+        PAY->>PAY: 冻结后续支付并对账
+    end
