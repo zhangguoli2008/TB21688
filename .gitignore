@@ -16,3 +16,15 @@ SmartProcure_Codex_Starter_2026-10-20/
 *.log
 **/__pycache__/
 *.py[cod]
+node_modules/
+dist/
+build/
+.gradle/
+DerivedData/
+Pods/
+__pycache__/
+.venv/
+venv/
+target/
+out/
+*.class
