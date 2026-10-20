@@ -46,6 +46,7 @@ paths:
                       token: {type: string}
                       headerName: {type: string, enum: [X-CSRF-TOKEN]}
                   requestId: {type: string, format: uuid}
+        '503': {$ref: '#/components/responses/ErrorResponse'}
   /auth/login:
     post:
       tags: [Me]
@@ -73,6 +74,7 @@ paths:
         '400': {$ref: '#/components/responses/ErrorResponse'}
         '403': {$ref: '#/components/responses/ErrorResponse'}
         '404': {$ref: '#/components/responses/ErrorResponse'}
+        '503': {$ref: '#/components/responses/ErrorResponse'}
   /auth/logout:
     post:
       tags: [Me]
@@ -97,6 +99,7 @@ paths:
                   requestId: {type: string, format: uuid}
         '401': {$ref: '#/components/responses/ErrorResponse'}
         '403': {$ref: '#/components/responses/ErrorResponse'}
+        '503': {$ref: '#/components/responses/ErrorResponse'}
   /system/status:
     get:
       tags: [Me]
@@ -128,6 +131,7 @@ paths:
                   requestId: {type: string, format: uuid}
         '401': {$ref: '#/components/responses/ErrorResponse'}
         '403': {$ref: '#/components/responses/ErrorResponse'}
+        '503': {$ref: '#/components/responses/ErrorResponse'}
   /demo/resources/{id}:
     get:
       tags: [Me]
@@ -159,6 +163,7 @@ paths:
         '401': {$ref: '#/components/responses/ErrorResponse'}
         '403': {$ref: '#/components/responses/ErrorResponse'}
         '404': {$ref: '#/components/responses/ErrorResponse'}
+        '503': {$ref: '#/components/responses/ErrorResponse'}
   /me:
     get:
       tags: [Me]
@@ -171,6 +176,7 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/MeEnvelope'}
         '401': {$ref: '#/components/responses/ErrorResponse'}
+        '503': {$ref: '#/components/responses/ErrorResponse'}
   /stores:
     get:
       tags: [Stores]

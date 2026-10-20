@@ -1,0 +1,67 @@
+spring:
+  application:
+    name: smartprocure-api
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/smartprocure}
+    username: ${SPRING_DATASOURCE_USERNAME:smartprocure}
+    password: ${SPRING_DATASOURCE_PASSWORD:}
+    hikari:
+      connection-init-sql: SET TIME ZONE 'UTC'
+      connection-timeout: 3000
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+  jackson:
+    deserialization:
+      fail-on-unknown-properties: true
+    time-zone: UTC
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+      password: ${SPRING_DATA_REDIS_PASSWORD:}
+      connect-timeout: 1s
+      timeout: 1s
+      repositories:
+        enabled: false
+  rabbitmq:
+    host: ${SPRING_RABBITMQ_HOST:localhost}
+    port: ${SPRING_RABBITMQ_PORT:5672}
+    username: ${SPRING_RABBITMQ_USERNAME:smartprocure}
+    password: ${SPRING_RABBITMQ_PASSWORD:}
+    connection-timeout: 2s
+server:
+  port: 8080
+  servlet:
+    session:
+      timeout: 30m
+      tracking-modes: cookie
+      cookie:
+        name: SPSESSION
+        http-only: true
+        same-site: lax
+        secure: true
+  error:
+    include-message: never
+    include-stacktrace: never
+    include-exception: false
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+      probes:
+        enabled: true
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+app:
+  provider-mode: ${APP_PROVIDER_MODE:MOCK}
+  real-platform-enabled: ${APP_REAL_PLATFORM_ENABLED:false}
+  real-procurement-enabled: ${APP_REAL_PROCUREMENT_ENABLED:false}
+  real-payment-enabled: ${APP_REAL_PAYMENT_ENABLED:false}

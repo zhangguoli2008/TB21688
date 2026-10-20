@@ -47,6 +47,7 @@
 - `QUOTE_EXPIRED` 422、`RISK_REVIEW_REQUIRED` 422。
 - `PAYMENT_STATUS_UNKNOWN` 409；**禁止前端显示付款失败并开放再次支付**。
 - `RATE_LIMITED` 429、`PROVIDER_TEMPORARY_FAILURE` 503。
+- M0 基础设施或审计不可用：`SERVICE_UNAVAILABLE` 503，审计未持久化不提交成功响应，并撤销相关演示会话。DB `real_` 命名空间启用标志视为配置错误，当前作用域失败关闭（503 `CAPABILITY_UNAVAILABLE`），不能激活真实能力；全局标志作用全局，租户标志只作用所属租户。正常的未获准 Adapter 能力仍返回422。
 
 ## 事件总线定义
 事件envelope：`eventId, eventType, schemaVersion, tenantId, aggregateType, aggregateId, occurredAt, correlationId, payload`；payload最小化，不包含消费者明文身份。
