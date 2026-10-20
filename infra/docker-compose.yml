@@ -1,0 +1,81 @@
+name: smartprocure-m0
+services:
+  postgres:
+    image: postgres:17.10-alpine
+    environment:
+      POSTGRES_DB: smartprocure
+      POSTGRES_USER: smartprocure
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Run python3 scripts/init-demo-env.py first}
+      TZ: UTC
+      PGTZ: UTC
+    ports: ["127.0.0.1:5432:5432"]
+    volumes: ["postgres-data:/var/lib/postgresql/data"]
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U smartprocure -d smartprocure"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  redis:
+    image: redis:8.8.0-alpine
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Run python3 scripts/init-demo-env.py first}
+    command: [sh, -c, 'exec redis-server --requirepass "$$REDIS_PASSWORD" --save "" --appendonly no']
+    ports: ["127.0.0.1:6379:6379"]
+    healthcheck:
+      test: [CMD-SHELL, 'REDISCLI_AUTH="$$REDIS_PASSWORD" redis-cli ping | grep -q PONG']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  rabbitmq:
+    image: rabbitmq:4.1.8-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: smartprocure
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?Run python3 scripts/init-demo-env.py first}
+    ports: ["127.0.0.1:5672:5672", "127.0.0.1:15672:15672"]
+    healthcheck:
+      test: [CMD, rabbitmq-diagnostics, -q, ping]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+  api:
+    build:
+      context: ..
+      dockerfile: apps/api/Dockerfile
+    environment:
+      SPRING_PROFILES_ACTIVE: demo
+      SERVER_ADDRESS: 0.0.0.0
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/smartprocure
+      SPRING_DATASOURCE_USERNAME: smartprocure
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?Generate local .env}
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      SPRING_DATA_REDIS_PASSWORD: ${REDIS_PASSWORD:?Generate local .env}
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: 5672
+      SPRING_RABBITMQ_USERNAME: smartprocure
+      SPRING_RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?Generate local .env}
+      APP_PROVIDER_MODE: MOCK
+      APP_REAL_PLATFORM_ENABLED: "false"
+      APP_REAL_PROCUREMENT_ENABLED: "false"
+      APP_REAL_PAYMENT_ENABLED: "false"
+      TZ: UTC
+    ports: ["127.0.0.1:8080:8080"]
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      rabbitmq: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, curl, --fail, --silent, http://localhost:8080/actuator/health/liveness]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+  web:
+    build:
+      context: ..
+      dockerfile: apps/web/Dockerfile
+    ports: ["127.0.0.1:4173:80"]
+    depends_on:
+      api: {condition: service_healthy}
+volumes:
+  postgres-data:

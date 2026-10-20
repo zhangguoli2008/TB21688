@@ -1,4 +1,105 @@
-# 智采云 SmartProcure — Codex 开发文档包
+# 智采云 SmartProcure
+
+当前交付：**M0 本地 Mock 演示骨架**。含演示会话、租户/RBAC、数据库迁移、Mock 适配器探针、登录和总览空态。店铺、订单、采购、支付、物流业务尚未实现；真实平台通道全部禁用。
+
+## 快速启动（Docker）
+
+需要 Docker Engine/Desktop 与 Compose **2.24+**；仅用于本地演示，不要部署公网。基础设施凭据由工具随机生成到 Git 忽略的 `.env`，不填写生产信息。
+
+```bash
+python3 scripts/init-demo-env.py
+docker compose config --quiet
+docker compose up --build --wait --wait-timeout 300
+```
+
+打开 [本地 Web](http://localhost:4173/login)。选择“商家 A · 店主”进入空态总览；“客服”身份用于403验收，“商家 B”用于隔离验收。均为合成身份选择，无账号密码。API [健康检查](http://localhost:8080/actuator/health/liveness)、[本地 Swagger](http://localhost:8080/swagger-ui/index.html)。已有 `.env` 时初始化工具会拒绝覆盖，请直接复用。
+
+停止：`docker compose down`；PostgreSQL 数据卷会保留。删除数据卷会丢失本地演示数据，不作为日常重启步骤。重启 API 会撤销全部内存演示会话，重新登录即可。
+
+## 本地开发（Java 21 / Node 24）
+
+根 `pom.xml` 聚合 `apps/api`；Maven Wrapper 固定 3.9.16。数据库需 PostgreSQL17，Redis8，RabbitMQ4.1；也可只用 Compose 启动这三个服务。数据库使用专用演示库，不使用已有生产库。
+
+```bash
+docker compose up -d postgres redis rabbitmq
+set -a
+. ./.env
+set +a
+export SPRING_DATASOURCE_URL=jdbc:postgresql://127.0.0.1:5432/smartprocure
+export SPRING_DATASOURCE_USERNAME=smartprocure
+export SPRING_DATASOURCE_PASSWORD="$POSTGRES_PASSWORD"
+export SPRING_DATA_REDIS_PASSWORD="$REDIS_PASSWORD"
+export SPRING_RABBITMQ_USERNAME=smartprocure
+export SPRING_RABBITMQ_PASSWORD="$RABBITMQ_PASSWORD"
+./mvnw -pl apps/api spring-boot:run -Dspring-boot.run.profiles=demo
+```
+
+另一个终端：
+
+```bash
+cd apps/web
+npm ci
+npm run dev
+```
+
+打开 [Vite 本地 Web](http://127.0.0.1:5173/login)，Vite 将 `/api` 代理至8080。原生服务可用 `SPRING_DATA_REDIS_HOST/PORT`、`SPRING_RABBITMQ_HOST/PORT` 调整连接；依赖故障会显示 `DOWN`，不会冒充正常服务。
+
+## 演示数据与安全边界
+
+- `V1__initial_schema.sql` 管理结构，禁止 `ddl-auto=update`。完整草案表仅代表结构，后续业务未开放。
+- 仅 `demo` / `test` 配置加载独立 `db/demo/seed.sql`：2租户、3合成身份及最小权限；幂等重复初始化，不创建店铺/订单/付款记录，不含消费者隐私。
+- `SPSESSION` 为 HttpOnly/SameSite cookie，30分钟失效；每请求查验 ACTIVE 用户、成员、角色与租户。普通请求不能通过 Header/query/body 切换租户。会话仅本地单实例内存，生产认证、共享会话和正式安全准入尚未完成。
+- 演示写请求必须先 `GET /api/v1/auth/csrf`，携带返回的 `X-CSRF-TOKEN`；登录后重新获取。退出立即撤销；前端不保存认证 token 到 localStorage。
+- `APP_PROVIDER_MODE=MOCK`，`APP_REAL_PLATFORM_ENABLED`、`APP_REAL_PROCUREMENT_ENABLED`、`APP_REAL_PAYMENT_ENABLED` 默认 false；启用真实模式会失败关闭。`prod` 与演示配置组合被拒绝，不存在真实 Adapter、支付脚本或第三方密码收集。
+- `/api/v1/me`、错误响应及所有 M0 端点以 `contracts/openapi.yaml` 为源；其余路径明确为未来设计，未实现。
+
+## 构建与测试
+
+单元测试与 API jar：
+
+```bash
+./mvnw --batch-mode verify
+```
+
+真实 PostgreSQL 集成测试必须使用**专用测试库**；测试会迁移、初始化并修改其中的合成数据，且会创建独立的非演示测试 schema。默认命令不执行 IT，不能将单元测试成功表述为集成验证。
+
+```bash
+export M0_TEST_DB_URL=jdbc:postgresql://127.0.0.1:5432/smartprocure_test
+export M0_TEST_DB_USER=smartprocure
+export M0_TEST_DB_PASSWORD="$POSTGRES_PASSWORD"
+./mvnw --batch-mode -Pintegration verify
+```
+
+```bash
+cd apps/web
+npm ci
+npm run lint
+npm run typecheck
+npm test
+npm run build
+npm audit --audit-level=high
+```
+
+合同校验、基础安全扫描与运行中 API 的 HTTP 验收（在项目根执行）：
+
+```bash
+python3 -m venv .local/venv
+.local/venv/bin/pip install -r scripts/requirements.txt
+.local/venv/bin/openapi-spec-validator contracts/openapi.yaml
+python3 scripts/check-safety.py
+.local/venv/bin/python scripts/smoke-m0.py
+M0_REQUIRE_HEALTHY=1 M0_BASE_URL=http://localhost:4173/api/v1 .local/venv/bin/python scripts/smoke-m0.py
+```
+
+最后一条要求完整 Compose 的所有依赖为 UP，并验证 Nginx 代理、会话及CSRF。基础扫描只检查常见密钥模式和意外真实电商 URL，配合 npm audit；不代表生产安全审计或完整 Java 漏洞扫描。
+
+CI 位于 `.github/workflows/ci.yml`，含后端单元/PG集成、前端 lint/typecheck/test/build/audit、合同/基础安全及 Compose 两次启动后的 HTTP 验收。云端 CI 只有推送到 GitHub 后才会执行；本轮实际命令、数量和未运行项见 `docs/27_M0验证记录.md`。核对问题、精确版本与任务依赖见 `docs/26_M0实施核对与计划.md`。
+
+Spring Boot **3.5.16** 遵循既有3.x基线；该分支开源支持已结束，生产前需要明确升级或商业支持决策，见 [Spring 官方支持记录](https://api.spring.io/projects/spring-boot/generations/3.5.x)。本项目目前不满足正式上线准入。
+
+---
+
+以下保留原需求基线与后续阅读顺序。
 
 **版本**：需求基线 v1.0.0（2026-10-20）  
 **状态**：可启动 Mock-first 开发；**不代表各电商平台接口或支付能力已获批**  
@@ -37,7 +138,7 @@
 
 ## 首次使用 Codex
 
-1. 将整个文档目录解压到空 Git 仓库根目录。
+1. 文档已导入仓库根目录；原始解压包与压缩包保留在本地并由 Git 忽略。
 2. 先读 `AGENTS.md` 和 `prompts/01_初始化项目.md`。
 3. 一次只实施一个里程碑，Codex 完成代码、测试、接口样例和更新文档后再验收。
 4. 不要把任何生产 token、商家隐私数据、免密支付密钥填入提示词或示例配置。
