@@ -72,6 +72,7 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/MeEnvelope'}
         '400': {$ref: '#/components/responses/ErrorResponse'}
+        '401': {$ref: '#/components/responses/ErrorResponse'}
         '403': {$ref: '#/components/responses/ErrorResponse'}
         '404': {$ref: '#/components/responses/ErrorResponse'}
         '503': {$ref: '#/components/responses/ErrorResponse'}

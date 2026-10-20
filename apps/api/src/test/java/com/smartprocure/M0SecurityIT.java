@@ -117,6 +117,20 @@ class M0SecurityIT {
         try { mvc.perform(get("/api/v1/me").session(user.session())).andExpect(status().isUnauthorized()); }
         finally { jdbc.update("update tenant_members set status='ACTIVE' where tenant_id=?", UUID.fromString(A)); }
     }
+    @Test void disabledMemberCannotLoginOrAcquireASessionIdentity() throws Exception {
+        Session before = anonymous();
+        UUID userId = UUID.fromString("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1");
+        String requestId = "01234567-89ab-4cde-8fab-0123456789ab";
+        jdbc.update("update tenant_members set status='DISABLED' where tenant_id=? and user_id=?", UUID.fromString(A), userId);
+        try {
+            mvc.perform(post("/api/v1/auth/login").session(before.session()).header("X-CSRF-TOKEN", before.csrf())
+                    .header("X-Request-Id", requestId).contentType("application/json").content("{\"persona\":\"OWNER_A\"}"))
+                    .andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("UNAUTHENTICATED"))
+                    .andExpect(jsonPath("$.requestId").value(requestId)).andExpect(header().string("X-Request-Id", requestId));
+            assertThat(before.session().getAttribute(com.smartprocure.auth.DemoIdentity.SESSION_ATTRIBUTE)).isNull();
+            mvc.perform(get("/api/v1/me").session(before.session())).andExpect(status().isUnauthorized());
+        } finally { jdbc.update("update tenant_members set status='ACTIVE' where tenant_id=? and user_id=?", UUID.fromString(A), userId); }
+    }
     @Test void invalidInputsAndUnimplementedRoutesUseErrorEnvelope() throws Exception {
         Session user = login("OWNER_A");
         mvc.perform(post("/api/v1/auth/login").session(user.session()).header("X-CSRF-TOKEN", user.csrf())
