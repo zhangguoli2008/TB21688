@@ -10,16 +10,29 @@ const session = useSessionStore();
     <p class="eyebrow">403 · 权限不足</p>
     <h1 id="forbidden-title">当前身份无权访问此页面</h1>
     <p>
-      当前角色：{{ session.user?.roles.join("、") }}。经营总览需要 reports.read
-      权限。
+      当前角色：{{ session.user?.roles.join("、") }}。此页面需要相应的操作权限。
     </p>
-    <p class="muted">您可以使用右上角“退出”，再选择商家店主身份演示。</p>
+    <p class="muted">客服可查看授权范围内的店铺与销售订单；管理操作需由店主执行。</p>
+    <RouterLink
+      v-if="session.can('orders.read')"
+      to="/orders"
+      class="el-button el-button--primary"
+    >
+      返回订单工作台
+    </RouterLink>
+    <RouterLink
+      v-if="session.can('stores.read')"
+      to="/stores"
+      class="el-button"
+    >
+      查看店铺
+    </RouterLink>
     <RouterLink
       v-if="session.can('reports.read')"
       to="/dashboard"
       class="el-button el-button--primary"
     >
       返回经营总览
-    </RouterLink><el-tag v-else type="info">客服身份仅拥有演示资源权限</el-tag>
+    </RouterLink>
   </section>
 </template>
