@@ -25,8 +25,6 @@ const route = useRoute();
 const router = useRouter();
 const logoutError = ref<ApiError | null>(null);
 const futureNavigation = [
-  { label: "店铺中心", icon: OfficeBuilding, stage: "M1" },
-  { label: "订单工作台", icon: Document, stage: "M1" },
   { label: "商品与货源", icon: Goods, stage: "M2" },
   { label: "采购管理", icon: ShoppingCart, stage: "M2" },
   { label: "支付中心", icon: Wallet, stage: "M3" },
@@ -51,9 +49,10 @@ async function logout() {
       <div class="app-brand">
         <span class="brand-symbol"><el-icon><Connection /></el-icon></span><span>智采云<small>SMARTPROCURE</small></span>
       </div>
-      <div class="workspace-label">商家工作台 <span>M0</span></div>
+      <div class="workspace-label">商家工作台 <span>M1</span></div>
       <nav aria-label="主导航">
         <RouterLink
+          v-if="session.can('reports.read')"
           class="navigation-item"
           :class="{ active: route.path === '/dashboard' }"
           to="/dashboard"
@@ -62,6 +61,8 @@ async function logout() {
           <el-icon><DataAnalysis /></el-icon><span>经营总览</span>
         </RouterLink>
         <p class="nav-caption">业务管理</p>
+        <RouterLink v-if="session.can('stores.read')" class="navigation-item" :class="{active:route.path.startsWith('/stores')}" to="/stores" :aria-current="route.path.startsWith('/stores')?'page':undefined"><el-icon><OfficeBuilding /></el-icon><span>店铺中心</span></RouterLink>
+        <RouterLink v-if="session.can('orders.read')" class="navigation-item" :class="{active:route.path.startsWith('/orders')}" to="/orders" :aria-current="route.path.startsWith('/orders')?'page':undefined"><el-icon><Document /></el-icon><span>订单工作台</span></RouterLink>
         <button
           v-for="item in futureNavigation"
           :key="item.label"
@@ -115,10 +116,10 @@ async function logout() {
           :error="logoutError"
           title="退出未确认，请重试"
         />
-        <RouterView />
+        <RouterView :key="`${session.user?.currentTenantId}:${session.user?.userId}`" />
       </main>
       <footer class="workspace-footer">
-        智采云 <span>M0 基础框架 · Mock / 待授权</span><span>时间显示：Asia/Shanghai</span>
+        智采云 <span>M1 店铺与销售订单 · Mock / 待授权</span><span>时间显示：Asia/Shanghai</span>
       </footer>
     </div>
   </div>

@@ -40,6 +40,8 @@ export const useSessionStore = defineStore("session", () => {
     }
   }
   async function login(persona: Persona) {
+    user.value = null;
+    api.clearCsrf();
     loading.value = true;
     try {
       user.value = await api.login(persona);

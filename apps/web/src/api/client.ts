@@ -1,3 +1,4 @@
+import { isStore, isOrder, isOrderDetail, isPage, isStoreCreate, isStoreUpdate, isScenario, isScenarioResult, orderQuery, uuid, type StoreCreate, type StoreUpdate, type OrderFilters, type ScenarioRequest } from "../domain/m1";
 export type Persona = "OWNER_A" | "SUPPORT_A" | "OWNER_B";
 export interface Me {
   userId: string;
@@ -92,6 +93,7 @@ export function createApiClient(
   fetcher: Fetcher = (path, options) => fetch(path, options),
 ) {
   let csrf: Csrf | null = null;
+  let sessionEpoch = 0;
   let unauthorizedHandler: (() => void) | undefined;
 
   async function request<T>(
@@ -99,6 +101,7 @@ export function createApiClient(
     valid: (value: unknown) => value is T,
     options: RequestInit = {},
   ): Promise<T> {
+    const requestEpoch = sessionEpoch;
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 12000);
     try {
@@ -108,6 +111,7 @@ export function createApiClient(
         signal: controller.signal,
         headers: { Accept: "application/json", ...options.headers },
       });
+      if (requestEpoch !== sessionEpoch) throw new ApiError("SESSION_CHANGED", "会话已变化，请刷新当前页面。");
       if (response.status === 401) {
         csrf = null;
         unauthorizedHandler?.();
@@ -123,7 +127,7 @@ export function createApiClient(
         );
       }
       if (!response.ok) {
-        if (response.status === 403 && options.method === "POST") csrf = null;
+        if (response.status === 403 && ["POST", "PATCH"].includes(options.method ?? "")) csrf = null;
         throw new ApiError(
           record(body) && typeof body.code === "string"
             ? body.code
@@ -144,13 +148,14 @@ export function createApiClient(
       ) {
         throw new ApiError(
           "INVALID_RESPONSE",
-          "服务响应与 M0 演示合同不符。",
+          "服务响应与演示合同不符。",
           response.status,
           record(body) && typeof body.requestId === "string"
             ? body.requestId
             : undefined,
         );
       }
+      if (requestEpoch !== sessionEpoch) throw new ApiError("SESSION_CHANGED", "会话已变化，请刷新当前页面。");
       return body.data;
     } catch (error) {
       if (error instanceof ApiError) throw error;
@@ -172,12 +177,15 @@ export function createApiClient(
     path: string,
     valid: (value: unknown) => value is T,
     body?: unknown,
+    extraHeaders: Record<string, string> = {},
+    method = "POST",
   ) {
     if (!csrf) await refreshCsrf();
     return request(path, valid, {
-      method: "POST",
+      method,
       headers: {
         "Content-Type": "application/json",
+        ...extraHeaders,
         [csrf!.headerName]: csrf!.token,
       },
       body: body === undefined ? undefined : JSON.stringify(body),
@@ -189,7 +197,24 @@ export function createApiClient(
       unauthorizedHandler = handler;
     },
     clearCsrf() {
+      sessionEpoch++;
       csrf = null;
+    },
+    listStores: (limit = 20, offset = 0) => request(`/stores?limit=${Math.min(100, Math.max(1, limit))}&offset=${Math.min(10000, Math.max(0, offset))}`, isPage(isStore)),
+    getStore: (id: string) => request(`/stores/${encodeURIComponent(id)}`, isStore),
+    async createStore(body: StoreCreate, key: string) {
+      if (!isStoreCreate(body) || !key) throw new ApiError("INVALID_REQUEST", "请填写有效的 Mock 店铺信息。");
+      return post("/stores", isStore, body, { "Idempotency-Key": key });
+    },
+    async updateStore(id: string, body: StoreUpdate) {
+      if (!uuid(id) || !isStoreUpdate(body)) throw new ApiError("INVALID_REQUEST", "店铺更新信息不符合合同。");
+      return post(`/stores/${id}`, isStore, body, {}, "PATCH");
+    },
+    listOrders: (filters: OrderFilters = { limit: 20, offset: 0 }) => request(`/orders?${new URLSearchParams(orderQuery(filters))}`, isPage(isOrder)),
+    getOrder: (id: string) => request(`/orders/${encodeURIComponent(id)}`, isOrderDetail),
+    async simulateOrders(id: string, body: ScenarioRequest, key: string) {
+      if (!uuid(id) || !isScenario(body) || !key) throw new ApiError("INVALID_REQUEST", "请输入有效的合成订单号和模拟场景。");
+      return post(`/mock/stores/${id}/scenarios`, isScenarioResult, body, { "Idempotency-Key": key });
     },
     getMe: () => request("/me", isMe),
     getSystemStatus: () => request("/system/status", isStatus),

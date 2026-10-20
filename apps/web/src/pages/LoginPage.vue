@@ -19,7 +19,7 @@ async function login() {
   error.value = null;
   try {
     await session.login(persona.value);
-    await router.replace(session.can("reports.read") ? "/dashboard" : "/403");
+    await router.replace(session.can("reports.read") ? "/dashboard" : session.can("orders.read") ? "/orders" : "/403");
   } catch (cause) {
     error.value = asApiError(cause);
   }
@@ -36,13 +36,13 @@ async function login() {
         <p class="eyebrow">多租户电商采购工作台</p>
         <h1>从清晰的工作台，<br />开始每一天。</h1>
         <p class="intro-copy">
-          在隔离的演示环境中，检查租户身份、访问权限与基础服务。业务流程将在后续里程碑逐步开放。
+          在隔离的演示环境中，连接 Mock 店铺，查看合成销售订单与同步事件。
         </p>
         <div class="intro-note">
           <el-icon><Lock /></el-icon><span>真实平台、采购与支付通道均已关闭</span>
         </div>
         <div class="milestone-line">
-          <span class="milestone-dot"></span>M0 项目基础
+          <span class="milestone-dot"></span>M1 店铺与销售订单
           <span class="muted">/ 本地演示</span>
         </div>
       </div>
@@ -64,7 +64,7 @@ async function login() {
             <el-option label="商家 B · 店主" value="OWNER_B" />
           </el-select>
           <div class="identity-note">
-            <el-icon><OfficeBuilding /></el-icon><span>身份与当前租户由服务端会话确认。客服身份无法查看经营总览。</span>
+            <el-icon><OfficeBuilding /></el-icon><span>身份与店铺范围由服务端会话确认。客服仅可查看授权范围内的店铺与订单。</span>
           </div>
           <ErrorPanel v-if="error" :error="error" title="登录未完成" />
           <el-button
@@ -78,7 +78,7 @@ async function login() {
           </el-button>
         </form>
         <p class="login-footnote">
-          M0 仅验证基础框架，不提供真实店铺授权、采购或付款。
+          M1 提供 Mock 店铺授权与销售订单演示；真实平台、采购和付款仍待开放。
         </p>
       </section>
     </section>

@@ -22,6 +22,10 @@ export function createAppRouter(history: RouterHistory = createWebHistory()) {
             component: () => import("../pages/DashboardPage.vue"),
             meta: { permission: "reports.read", title: "经营总览" },
           },
+          { path: "stores", name: "stores", component: () => import("../pages/StoresPage.vue"), meta: {permission: "stores.read", title: "店铺中心"} },
+          { path: "stores/connect", name: "connect-store", component: () => import("../pages/ConnectStorePage.vue"), meta: {permission: "stores.manage", title: "连接 Mock 店铺"} },
+          { path: "orders", name: "orders", component: () => import("../pages/OrdersPage.vue"), meta: {permission: "orders.read", title: "订单工作台"} },
+          { path: "orders/:id", name: "order-detail", component: () => import("../pages/OrderDetailPage.vue"), meta: {permission: "orders.read", title: "销售订单详情"} },
           {
             path: "403",
             name: "forbidden",
@@ -49,7 +53,7 @@ export function createAppRouter(history: RouterHistory = createWebHistory()) {
     }
     if (!session.user && !to.meta.public) return { path: "/login" };
     if (session.user && to.path === "/login")
-      return { path: session.can("reports.read") ? "/dashboard" : "/403" };
+      return { path: session.can("reports.read") ? "/dashboard" : session.can("orders.read") ? "/orders" : "/403" };
     if (
       typeof to.meta.permission === "string" &&
       !session.can(to.meta.permission)

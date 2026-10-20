@@ -66,3 +66,18 @@ describe("session and permission boundary", () => {
     expect(router.currentRoute.value.name).toBe("not-found");
   });
 });
+
+describe('M1 landing and session rotation',()=> {
+  it('sends signed-in support visiting login to their scoped orders',async()=> {
+    vi.stubGlobal('fetch',vi.fn().mockResolvedValue(json(support)));
+    const router=createAppRouter(createMemoryHistory());await router.push('/login');expect(router.currentRoute.value.path).toBe('/orders');
+  });
+  it('clears a previous identity as soon as another persona login begins',async()=> {
+    const session=useSessionStore();session.user=owner;session.checked=true;
+    let resolve!: (value:Response)=>void;
+    vi.stubGlobal('fetch',vi.fn(()=>new Promise<Response>(r=>{resolve=r;})));
+    const pending=session.login('OWNER_B');
+    expect(session.user).toBeNull();
+    resolve(apiError(503));await expect(pending).rejects.toMatchObject({status:503});
+  });
+});

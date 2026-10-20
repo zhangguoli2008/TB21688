@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
 import {
-  Box,
+  Document,
   CircleCheck,
   Connection,
   DataLine,
@@ -57,7 +57,7 @@ onMounted(loadStatus);
       <div>
         <p class="eyebrow">工作台 / 总览</p>
         <h1>经营总览</h1>
-        <p class="muted">欢迎进入演示工作台，基础环境状态尽在这里。</p>
+        <p class="muted">从 Mock 店铺与销售订单开始，查看环境的实际运行状态。</p>
       </div>
       <el-button :icon="Refresh" :loading="loading" @click="loadStatus">
         刷新状态
@@ -81,8 +81,8 @@ onMounted(loadStatus);
       <section class="summary-card">
         <span class="summary-icon"><el-icon><DataLine /></el-icon></span>
         <div>
-          <span class="card-label">当前交付阶段</span><strong>M0 <small>基础框架</small></strong>
-          <p>认证、租户隔离与服务检查</p>
+          <span class="card-label">当前交付阶段</span><strong>M1 <small>店铺与订单</small></strong>
+          <p>Mock 授权、销售订单与异步事件</p>
         </div>
       </section>
     </div>
@@ -138,20 +138,21 @@ onMounted(loadStatus);
     </section>
     <section class="panel business-empty" aria-labelledby="business-title">
       <div class="empty-illustration">
-        <el-icon><Box /></el-icon>
+        <el-icon><Document /></el-icon>
       </div>
       <div>
         <el-tag size="small" type="info" effect="plain">
-          业务功能后续开放
+          M1 销售订单演示
         </el-tag>
-        <h2 id="business-title">这里将呈现您的经营数据</h2>
+        <h2 id="business-title">从 Mock 店铺开始订单演示</h2>
         <p>
-          当前阶段尚未开放店铺、订单、采购、支付和履约流程。<br />完成后续里程碑后，经营数据与待办将出现在这里。
+          连接 Mock 店铺，生成合成事件，在订单工作台查看销售金额与状态。<br />采购、利润、支付和履约数据待后续里程碑开放。
         </p>
+        <div class="inline-actions dashboard-entry"><RouterLink to="/stores"><el-button>店铺中心</el-button></RouterLink><RouterLink to="/orders"><el-button type="primary">进入订单工作台</el-button></RouterLink></div>
       </div>
     </section>
     <section class="scope-note">
-      <strong>M0 演示范围</strong><span>本地会话</span><span>当前租户</span><span>权限保护</span><span>真实服务状态</span><span class="muted">无真实交易</span>
+      <strong>M1 演示范围</strong><span>本地会话</span><span>当前租户</span><span>Mock 店铺授权</span><span>合成销售订单</span><span>真实服务状态</span><span class="muted">无真实交易</span>
     </section>
   </div>
 </template>
