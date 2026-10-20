@@ -3,6 +3,8 @@
 完整可机器读取的起始合同见 `contracts/openapi.yaml`。这是**自有SaaS API**，不是淘宝、抖店、1688或拼多多官方接口。开发应契约优先；完成每个模块时扩充OpenAPI。
 
 ## 公共约定
+- M0 已选本地服务端 `HttpSession`：`SPSESSION` HttpOnly / SameSite=Lax cookie，所有写请求携带从 `/auth/csrf` 取得的 `X-CSRF-TOKEN`，登录后重新获取。demo profile 仅环回 HTTP 时 cookie 允许非 Secure；正式身份系统未实现。演示单实例内存会话30分钟，退出立即撤销，重启即失效。
+- M0 演示入口为 `POST /auth/login {persona: OWNER_A|SUPPORT_A|OWNER_B}`；`POST /auth/logout` 退出。仅 demo/test 配置开放，禁止部署公网。`GET /system/status` 返回实际依赖状态；`GET /demo/resources/{id}` 仅用于合成租户隔离验收。M0 不提供注册、刷新、密码重置或切租户接口。
 - Base：`/api/v1`，UTF-8 JSON，HTTPS；会话HttpOnly Secure SameSite cookie或受控Bearer token（按正式身份方案确定），服务端统一鉴权。
 - API请求Header：`X-Request-Id` 可选；**采购、确认、支付等副作用写接口必须 `Idempotency-Key`**。
 - 商家当前租户来源于服务端已验证的用户会话及允许的租户切换，不能直接依赖任意Header传入。

@@ -1,15 +1,17 @@
 openapi: 3.0.3
 info:
-  title: SmartProcure SaaS Internal API (design contract)
-  version: 1.0.0-draft
+  title: SmartProcure SaaS Internal API
+  version: 0.1.0
   description: >-
     本合同仅描述智采云自己的API，不代表淘宝、抖店、1688或拼多多官方API。
     所有真实平台功能默认关闭；开发只可通过Mock接口验证。
+    M0 仅实现 auth/csrf、auth/login、auth/logout、me、system/status、demo/resources。
+    其他路径是后续里程碑的设计合同，尚未实现。
 servers:
   - url: http://localhost:8080/api/v1
     description: 本地Mock环境
 security:
-  - BearerAuth: []
+  - SessionCookie: []
 tags:
   - name: Me
   - name: Stores
@@ -22,6 +24,141 @@ tags:
   - name: Reports
   - name: Audit
 paths:
+  /auth/csrf:
+    get:
+      tags: [Me]
+      operationId: getCsrfToken
+      summary: 获取本地会话的CSRF令牌，登录后应重新获取
+      security: []
+      responses:
+        '200':
+          description: CSRF token（禁止记录日志）
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, requestId]
+                properties:
+                  data:
+                    type: object
+                    required: [token, headerName]
+                    properties:
+                      token: {type: string}
+                      headerName: {type: string, enum: [X-CSRF-TOKEN]}
+                  requestId: {type: string, format: uuid}
+  /auth/login:
+    post:
+      tags: [Me]
+      operationId: demoLogin
+      summary: 本地demo配置专用合成身份登录；不代表生产认证
+      security: []
+      parameters:
+        - {$ref: '#/components/parameters/CsrfToken'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [persona]
+              properties:
+                persona: {type: string, enum: [OWNER_A, SUPPORT_A, OWNER_B]}
+      responses:
+        '200':
+          description: 已建立本地演示会话（HttpOnly cookie）
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/MeEnvelope'}
+        '400': {$ref: '#/components/responses/ErrorResponse'}
+        '403': {$ref: '#/components/responses/ErrorResponse'}
+        '404': {$ref: '#/components/responses/ErrorResponse'}
+  /auth/logout:
+    post:
+      tags: [Me]
+      operationId: logout
+      summary: 撤销当前会话
+      parameters:
+        - {$ref: '#/components/parameters/CsrfToken'}
+      responses:
+        '200':
+          description: 会话已撤销
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, requestId]
+                properties:
+                  data:
+                    type: object
+                    required: [loggedOut]
+                    properties:
+                      loggedOut: {type: boolean, enum: [true]}
+                  requestId: {type: string, format: uuid}
+        '401': {$ref: '#/components/responses/ErrorResponse'}
+        '403': {$ref: '#/components/responses/ErrorResponse'}
+  /system/status:
+    get:
+      tags: [Me]
+      operationId: getSystemStatus
+      summary: 当前服务依赖的实际状态，需system.read权限
+      responses:
+        '200':
+          description: 检查结果；单项DOWN不伪造成UP
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, requestId]
+                properties:
+                  data:
+                    type: object
+                    required: [mode, realChannelsEnabled, services]
+                    properties:
+                      mode: {type: string, enum: [MOCK]}
+                      realChannelsEnabled: {type: boolean, enum: [false]}
+                      services:
+                        type: array
+                        items:
+                          type: object
+                          required: [name, status]
+                          properties:
+                            name: {type: string, enum: [api, postgresql, redis, rabbitmq]}
+                            status: {type: string, enum: [UP, DOWN, UNKNOWN]}
+                  requestId: {type: string, format: uuid}
+        '401': {$ref: '#/components/responses/ErrorResponse'}
+        '403': {$ref: '#/components/responses/ErrorResponse'}
+  /demo/resources/{id}:
+    get:
+      tags: [Me]
+      operationId: getDemoResource
+      summary: 仅demo的合成租户资源，跨租户返回404，需demo.read
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: 当前租户合成资源
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, requestId]
+                properties:
+                  data:
+                    type: object
+                    required: [id, label, tenantId]
+                    properties:
+                      id: {type: string, format: uuid}
+                      label: {type: string}
+                      tenantId: {type: string, format: uuid}
+                  requestId: {type: string, format: uuid}
+        '400': {$ref: '#/components/responses/ErrorResponse'}
+        '401': {$ref: '#/components/responses/ErrorResponse'}
+        '403': {$ref: '#/components/responses/ErrorResponse'}
+        '404': {$ref: '#/components/responses/ErrorResponse'}
   /me:
     get:
       tags: [Me]
@@ -333,11 +470,16 @@ paths:
         '409': {$ref: '#/components/responses/ErrorResponse'}
 components:
   securitySchemes:
-    BearerAuth:
-      type: http
-      scheme: bearer
-      bearerFormat: JWT
+    SessionCookie:
+      type: apiKey
+      in: cookie
+      name: SPSESSION
   parameters:
+    CsrfToken:
+      name: X-CSRF-TOKEN
+      in: header
+      required: true
+      schema: {type: string}
     Limit:
       name: limit
       in: query
@@ -503,16 +645,27 @@ components:
         currency: {type: string}
     MeEnvelope:
       type: object
+      required: [data, requestId]
       properties:
         data:
           type: object
+          required: [userId, email, tenantIds, currentTenantId, tenantName, roles, permissions, mode]
           properties:
             userId: {type: string, format: uuid}
             email: {type: string, format: email}
             tenantIds:
               type: array
               items: {type: string, format: uuid}
-        requestId: {type: string}
+            currentTenantId: {type: string, format: uuid}
+            tenantName: {type: string}
+            roles:
+              type: array
+              items: {type: string}
+            permissions:
+              type: array
+              items: {type: string}
+            mode: {type: string, enum: [MOCK]}
+        requestId: {type: string, format: uuid}
     StoreListEnvelope:
       type: object
       properties:
