@@ -8,7 +8,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Run python3 scripts/init-demo-env.py first}
       TZ: UTC
       PGTZ: UTC
-    ports: ["127.0.0.1:5432:5432"]
+    ports: ["127.0.0.1:${POSTGRES_HOST_PORT:-5432}:5432"]
     volumes: ["postgres-data:/var/lib/postgresql/data"]
     healthcheck:
       test: [CMD-SHELL, "pg_isready -U smartprocure -d smartprocure"]
@@ -20,7 +20,7 @@ services:
     environment:
       REDIS_PASSWORD: ${REDIS_PASSWORD:?Run python3 scripts/init-demo-env.py first}
     command: [sh, -c, 'exec redis-server --requirepass "$$REDIS_PASSWORD" --save "" --appendonly no']
-    ports: ["127.0.0.1:6379:6379"]
+    ports: ["127.0.0.1:${REDIS_HOST_PORT:-6379}:6379"]
     healthcheck:
       test: [CMD-SHELL, 'REDISCLI_AUTH="$$REDIS_PASSWORD" redis-cli ping | grep -q PONG']
       interval: 5s
@@ -31,7 +31,7 @@ services:
     environment:
       RABBITMQ_DEFAULT_USER: smartprocure
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?Run python3 scripts/init-demo-env.py first}
-    ports: ["127.0.0.1:5672:5672", "127.0.0.1:15672:15672"]
+    ports: ["127.0.0.1:${RABBITMQ_HOST_PORT:-5672}:5672", "127.0.0.1:${RABBITMQ_MANAGEMENT_HOST_PORT:-15672}:15672"]
     healthcheck:
       test: [CMD, rabbitmq-diagnostics, -q, ping]
       interval: 10s
@@ -59,7 +59,7 @@ services:
       APP_REAL_PROCUREMENT_ENABLED: "false"
       APP_REAL_PAYMENT_ENABLED: "false"
       TZ: UTC
-    ports: ["127.0.0.1:8080:8080"]
+    ports: ["127.0.0.1:${API_HOST_PORT:-8080}:8080"]
     depends_on:
       postgres: {condition: service_healthy}
       redis: {condition: service_healthy}
@@ -74,7 +74,7 @@ services:
     build:
       context: ..
       dockerfile: apps/web/Dockerfile
-    ports: ["127.0.0.1:4173:80"]
+    ports: ["127.0.0.1:${WEB_HOST_PORT:-4173}:80"]
     depends_on:
       api: {condition: service_healthy}
 volumes:

@@ -16,6 +16,8 @@ docker compose up --build --wait --wait-timeout 300
 
 停止：`docker compose down`；PostgreSQL 数据卷会保留。删除数据卷会丢失本地演示数据，不作为日常重启步骤。重启 API 会撤销全部内存演示会话，重新登录即可。
 
+如果本机已有 PostgreSQL、Redis 或其他服务占用默认端口，可在 `.env` 中设置 `.env.example` 列出的 `*_HOST_PORT`（例如 `POSTGRES_HOST_PORT=55433`、`REDIS_HOST_PORT=56380`）。容器间连接仍使用固定内部端口，宿主端口仍只绑定127.0.0.1；不会停止其他项目的服务。修改 `API_HOST_PORT` / `WEB_HOST_PORT` 后，相应访问地址也需使用该端口。
+
 ## 本地开发（Java 21 / Node 24）
 
 根 `pom.xml` 聚合 `apps/api`；Maven Wrapper 固定 3.9.16。数据库需 PostgreSQL17，Redis8，RabbitMQ4.1；也可只用 Compose 启动这三个服务。数据库使用专用演示库，不使用已有生产库。
@@ -93,7 +95,7 @@ M0_REQUIRE_HEALTHY=1 M0_BASE_URL=http://localhost:4173/api/v1 .local/venv/bin/py
 
 最后一条要求完整 Compose 的所有依赖为 UP，并验证 Nginx 代理、会话及CSRF。基础扫描只检查常见密钥模式和意外真实电商 URL，配合 npm audit；不代表生产安全审计或完整 Java 漏洞扫描。
 
-CI 位于 `.github/workflows/ci.yml`，含后端单元/PG集成、前端 lint/typecheck/test/build/audit、合同/基础安全及 Compose 两次启动后的 HTTP 验收。云端 CI 只有推送到 GitHub 后才会执行；本轮实际命令、数量和未运行项见 `docs/27_M0验证记录.md`。核对问题、精确版本与任务依赖见 `docs/26_M0实施核对与计划.md`。
+CI 位于 `.github/workflows/ci.yml`，含后端单元/PG集成、前端 lint/typecheck/test/build/audit、合同/基础安全及 Compose 两次启动后的 HTTP 验收。2026-10-21补验已用act在Linux容器中执行全部4个job，均成功；真实Compose构建、全依赖正常和保留数据卷重复启动也已验证。云端 CI 只有推送到 GitHub 后才会执行，目前尚无远程仓库。实际命令、数量和未运行项见 `docs/27_M0验证记录.md`。核对问题、精确版本与任务依赖见 `docs/26_M0实施核对与计划.md`。
 
 Spring Boot **3.5.16** 遵循既有3.x基线；该分支开源支持已结束，生产前需要明确升级或商业支持决策，见 [Spring 官方支持记录](https://api.spring.io/projects/spring-boot/generations/3.5.x)。本项目目前不满足正式上线准入。
 
