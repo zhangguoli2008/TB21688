@@ -200,6 +200,28 @@ class M2ProcurementIT {
         procure();assertThat(state(f.item())).isEqualTo("REVIEW_REQUIRED");
         assertThat(jdbc.queryForObject("select count(*) from mock_purchase_authority where tenant_id=? and offer_id=?",Integer.class,A,f.offer())).isZero();
     }
+    @Test void concurrentDifferentItemsReserveOnlyTheExactStoreDailyCap() throws Exception {
+        Fixture blue=fixture("NORMAL");UUID whiteOffer=UUID.randomUUID();
+        UUID whiteItem=jdbc.queryForObject("select i.id from sales_order_items i join sales_orders o on o.tenant_id=i.tenant_id and o.id=i.sales_order_id where i.tenant_id=? and o.store_id=? and i.external_item_id='ITEM-2'",UUID.class,A,blue.store());
+        jdbc.update("insert into supplier_offers(id,tenant_id,supplier_account_id,external_offer_id,external_sku_id,display_name,last_unit_price_fen,shipping_fen,compatible_sales_sku_id) select ?,tenant_id,supplier_account_id,?,'MOCK-SKU-WHITE','合成白盒',2002,99,'MOCK-SKU-WHITE' from supplier_offers where tenant_id=? and id=?",whiteOffer,"MOCK-"+whiteOffer,A,blue.offer());
+        jdbc.update("insert into sku_mappings(tenant_id,store_id,sales_sku_id,supplier_offer_id,status,confirmed_by,confirmed_at,review_acknowledged) values(?,?,'MOCK-SKU-WHITE',?,'CONFIRMED','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',now(),true)",A,blue.store(),whiteOffer);
+        evaluate(blue);jdbc.update("update procurement_policies set max_daily_fen=2101,version=version+1 where tenant_id=? and store_id=?",A,blue.store());
+        Fixture white=new Fixture(blue.session(),blue.store(),whiteItem,whiteOffer,blue.external());
+        JsonNode blueEvaluation=evaluate(blue),whiteEvaluation=evaluate(white);
+        assertThat(blueEvaluation.get("allowed").asBoolean()).isTrue();assertThat(whiteEvaluation.get("allowed").asBoolean()).isTrue();
+        var barrier=new java.util.concurrent.CountDownLatch(2);
+        org.mockito.Mockito.doAnswer(invocation->{var result=invocation.callRealMethod();barrier.countDown();assertThat(barrier.await(5,java.util.concurrent.TimeUnit.SECONDS)).isTrue();return result;}).when(supplier).quote(org.mockito.ArgumentMatchers.eq(A),org.mockito.ArgumentMatchers.argThat(id->id.equals(blue.offer())||id.equals(white.offer())),org.mockito.ArgumentMatchers.anyInt());
+        try(var pool=Executors.newFixedThreadPool(2)) {
+            var tasks=List.<java.util.concurrent.Callable<Integer>>of(()->dailyCreateStatus(blue,blueEvaluation),()->dailyCreateStatus(white,whiteEvaluation));
+            var statuses=new java.util.ArrayList<Integer>();for(var result:pool.invokeAll(tasks))statuses.add(result.get());assertThat(statuses).containsExactlyInAnyOrder(202,409);
+        }
+        assertThat(jdbc.queryForObject("select coalesce(sum(p.estimated_total_fen),0) from purchase_intents p join sales_order_items i on i.tenant_id=p.tenant_id and i.id=p.sales_order_item_id join sales_orders o on o.tenant_id=i.tenant_id and o.id=i.sales_order_id where p.tenant_id=? and o.store_id=?",Long.class,A,blue.store())).isEqualTo(2101);
+    }
+    int dailyCreateStatus(Fixture f,JsonNode evaluation) throws Exception {
+        var result=mvc.perform(post("/api/v1/purchase-intents").session(f.session().session()).header("X-CSRF-TOKEN",f.session().csrf()).header("Idempotency-Key",UUID.randomUUID().toString()).contentType("application/json").content(mapper.writeValueAsString(Map.of("salesOrderItemId",f.item(),"quoteId",evaluation.at("/selectedQuote/id").asText())))).andReturn();
+        if(result.getResponse().getStatus()==409)assertThat(mapper.readTree(result.getResponse().getContentAsString()).get("code").asText()).isEqualTo("DAILY_LIMIT_EXCEEDED");
+        return result.getResponse().getStatus();
+    }
     @Test void ownerCanReadBoundedProcurementListsAndCannotReadAnotherTenantId() throws Exception {
         Session a=login("OWNER_A");
         mvc.perform(get("/api/v1/purchase-intents").session(a.session())).andExpect(status().isOk()).andExpect(jsonPath("$.data.items").isArray());
