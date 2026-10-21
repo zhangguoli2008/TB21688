@@ -109,7 +109,7 @@ M0_REQUIRE_HEALTHY=1 M0_BASE_URL=http://localhost:4173/api/v1 .local/venv/bin/py
 
 最后一条要求完整 Compose 的所有依赖为 UP，并验证 Nginx 代理、会话及CSRF。基础扫描只检查常见密钥模式和意外真实电商 URL，配合 npm audit；不代表生产安全审计或完整 Java 漏洞扫描。
 
-CI 位于 `.github/workflows/ci.yml`，含后端单元/PG集成、前端 lint/typecheck/test/build/audit、合同/基础安全及 Compose 两次启动后的 M0/M1 HTTP 验收。M1本地最终验收：后端62/62、前端49/49、容器直连/重启后代理各HTTP20项通过；真实执行命令与已知边界见 [docs/28](docs/28_M1实施计划与验收.md)。以下为既有 M0 的历史证据：2026-10-21补验已完成本地act与[真实GitHub Actions](https://github.com/zhangguoli2008/TB21688/actions/runs/39464594083)，四个job均成功；后端31项、前端19项、云端HTTP两轮各8项全部通过。真实Compose构建、全依赖正常和保留数据卷重复启动也已验证。实际命令、数量及后续范围见 `docs/27_M0验证记录.md`，版本与任务依赖见 `docs/26_M0实施核对与计划.md`。
+CI 位于 `.github/workflows/ci.yml`，含后端单元/PG集成、前端 lint/typecheck/test/build/audit、合同/基础安全及 Compose 两次启动后的 M0/M1 HTTP 验收。M1本地最终验收：后端62/62、前端49/49、容器直连/重启后代理各HTTP20项通过；[本轮真实GitHub Actions](https://github.com/zhangguoli2008/TB21688/actions/runs/39532516607)四个job全部成功。真实执行命令与已知边界见 [docs/28](docs/28_M1实施计划与验收.md)。以下为既有 M0 的历史证据：2026-10-21补验已完成本地act与[真实GitHub Actions](https://github.com/zhangguoli2008/TB21688/actions/runs/39464594083)，四个job均成功；后端31项、前端19项、云端HTTP两轮各8项全部通过。真实Compose构建、全依赖正常和保留数据卷重复启动也已验证。实际命令、数量及后续范围见 `docs/27_M0验证记录.md`，版本与任务依赖见 `docs/26_M0实施核对与计划.md`。
 
 Spring Boot **3.5.16** 遵循既有3.x基线；该分支开源支持已结束，生产前需要明确升级或商业支持决策，见 [Spring 官方支持记录](https://api.spring.io/projects/spring-boot/generations/3.5.x)。本项目目前不满足正式上线准入。
 
