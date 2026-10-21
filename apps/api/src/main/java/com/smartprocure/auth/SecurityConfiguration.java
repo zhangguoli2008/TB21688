@@ -42,6 +42,12 @@ public class SecurityConfiguration {
                             .requestMatchers(HttpMethod.PATCH,"/api/v1/stores/*").hasAuthority("stores.manage")
                             .requestMatchers(HttpMethod.GET,"/api/v1/orders","/api/v1/orders/*").hasAuthority("orders.read")
                             .requestMatchers(HttpMethod.POST,"/api/v1/mock/stores/*/scenarios").hasAuthority("orders.simulate")
+                            .requestMatchers(HttpMethod.GET,"/api/v1/supplier-offers","/api/v1/sku-mappings","/api/v1/procurement-policy").hasAuthority("sourcing.read")
+                            .requestMatchers(HttpMethod.POST,"/api/v1/sku-mappings","/api/v1/supplier-offers/*/quotes").hasAuthority("sourcing.manage")
+                            .requestMatchers(HttpMethod.PATCH,"/api/v1/sku-mappings/*","/api/v1/supplier-offers/*/mock-config").hasAuthority("sourcing.manage")
+                            .requestMatchers(HttpMethod.GET,"/api/v1/procurement-policies/*","/api/v1/purchase-intents","/api/v1/purchase-intents/*","/api/v1/purchases","/api/v1/purchases/*").hasAuthority("procurement.read")
+                            .requestMatchers(HttpMethod.POST,"/api/v1/purchase-intents","/api/v1/purchase-intents/evaluate").hasAuthority("procurement.manage")
+                            .requestMatchers(HttpMethod.PUT,"/api/v1/procurement-policy","/api/v1/procurement-policies/*").hasAuthority("procurement.manage")
                             .requestMatchers(HttpMethod.PUT,"/api/v1/payment-policy").hasAuthority("paymentPolicy.manage")
                             .anyRequest().authenticated();
                 })

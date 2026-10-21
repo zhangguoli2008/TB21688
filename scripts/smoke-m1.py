@@ -4,8 +4,8 @@
 Set M1_BASE_URL (or M0_BASE_URL) and M1_MOCK_WEBHOOK_SECRET if overridden.
 Every run uses unique synthetic IDs. It creates a few synthetic stores/orders and
 keeps them for inspection; it never calls a real e-commerce or payment service.
-T-010/T-014/T-015/T-021 here cover M1 boundaries only: no M2 procurement object,
-M3 payment-policy implementation, or production tenant switch is claimed.
+T-010/T-014/T-015/T-021 here cover M1 boundaries only. M2 procurement
+acceptance is separate in smoke-m2.py; M3 payment and production tenant switching remain unavailable.
 """
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
@@ -108,7 +108,7 @@ class M1Smoke(unittest.TestCase):
         self.assertEqual("MOCK", detail["mode"])
 
     def test_06_duplicate_ten_deliveries_create_one_sales_order(self):
-        """T-001: ten Mock deliveries dedupe; procurement is not implemented."""
+        """T-001 sales dedupe; no confirmed mapping is created by this script."""
         external, key = unique("duplicate"), unique("duplicate_request")
         result = self.owner.scenario(self.store["id"], "DUPLICATE", external, key)
         self.assertEqual(10, result["acceptedEvents"])
@@ -189,8 +189,8 @@ class M1Smoke(unittest.TestCase):
         final = self.owner.detail(order["id"])["data"]
         self.assertEqual(order["sourceVersion"], final["sourceVersion"])
 
-    def test_12_parallel_sessions_and_unopened_purchase_boundary(self):
-        """T-021 separate sessions; T-015 future purchase route refusal, not object isolation."""
+    def test_12_parallel_sessions_and_unknown_purchase_id(self):
+        """T-021 separate sessions; random missing purchase ID is not object isolation proof."""
         a = self.owner.call("GET", "/me")["data"]["currentTenantId"]
         b = self.other.call("GET", "/me")["data"]["currentTenantId"]
         def one(index):
@@ -215,5 +215,5 @@ class M1Smoke(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    print("M1 Mock-only HTTP acceptance. T-010/014/015/021 cover documented M1 boundaries; later business flows remain unimplemented.")
+    print("M1 Mock-only HTTP regression. M2 procurement is validated separately; payment remains unavailable.")
     unittest.main(verbosity=2)

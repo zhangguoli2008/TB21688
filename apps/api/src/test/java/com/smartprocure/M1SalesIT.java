@@ -129,13 +129,13 @@ class M1SalesIT {
         String details=jdbc.queryForObject("select redacted_details::text from audit_logs where request_id=?",String.class,id);
         assertThat(details).contains("DENIED").doesNotContain("DO_NOT_LOG_SYNTHETIC","credential","token");
     }
-    @Test @Transactional void t015ExistingTenantBPurchaseRemainsHiddenByClosedM1ReadBoundary() throws Exception {
+    @Test @Transactional void t015ExistingTenantBPurchaseRemainsHiddenAcrossTenantsWithOwnerPositiveControl() throws Exception {
         Session a=login("OWNER_A"),b=login("OWNER_B");
         UUID store=UUID.fromString(store(b).get("id").asText());
         UUID sale=UUID.randomUUID(),item=UUID.randomUUID(),supplier=UUID.randomUUID(),offer=UUID.randomUUID();
         UUID mapping=UUID.randomUUID(),intent=UUID.randomUUID(),purchase=UUID.randomUUID();
         String canary="MOCK-B-PRIVATE-PURCHASE-"+UUID.randomUUID();
-        // Test-only V1 fixtures roll back with this method. No M2 creation/read API is enabled.
+        // Test-only legacy V1 fixtures roll back with this method; M2 readers tolerate absent quote snapshots.
         jdbc.update("insert into sales_orders(id,tenant_id,store_id,external_order_id,source_status,local_status,paid_amount_fen,source_version,source_updated_at) values(?,?,?,?,'PAID','VERIFIED_PAID',12900,1,now())",sale,B,store,orderId());
         jdbc.update("insert into sales_order_items(id,tenant_id,sales_order_id,external_item_id,external_sku_id,title,qty,paid_allocated_fen) values(?,?,?,'ITEM-1','MOCK-SKU',?,1,12900)",item,B,sale,canary);
         jdbc.update("insert into supplier_accounts(id,tenant_id,provider,external_account_id) values(?,?,'MOCK',?)",supplier,B,canary);
@@ -151,8 +151,9 @@ class M1SalesIT {
         assertThat(denied.getResponse().getContentAsString()).doesNotContain(canary,purchase.toString(),B.toString());
         assertThat(jdbc.queryForObject("select tenant_id from audit_logs where request_id=?",UUID.class,requestId)).isEqualTo(A);
         assertThat(jdbc.queryForObject("select external_order_id from purchase_orders where tenant_id=? and id=?",String.class,B,purchase)).isEqualTo(canary);
-        // M1 fails closed for the owner as well; this is not a claim of an implemented purchase reader.
-        mvc.perform(get("/api/v1/purchases/"+purchase).session(b.session())).andExpect(status().isNotFound());
+        mvc.perform(get("/api/v1/purchases/"+purchase).session(b.session())).andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.id").value(purchase.toString()))
+                .andExpect(jsonPath("$.data.externalOrderId").value(canary));
     }
     @Test void t016InvalidSignatureExpiredTimestampNonceReuseAndCrossIntegrationReplayFail() throws Exception {
         Session s=login("OWNER_A"); JsonNode st=store(s),other=store(s); String integration=st.get("integrationId").asText(); String external=orderId();

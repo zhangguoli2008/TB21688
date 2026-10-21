@@ -1,11 +1,12 @@
 openapi: 3.0.3
 info:
   title: SmartProcure SaaS Internal API
-  version: 0.2.0
+  version: 0.3.0
   description: >-
     本合同仅描述智采云自己的API，不代表淘宝、抖店、1688或拼多多官方API。
     所有真实平台功能默认关闭；开发只可通过Mock接口验证。
-    M0身份/状态及M1店铺、销售订单和Mock事件路径实现；所有真实通道关闭。
+    M0/M1身份、店铺与销售，以及M2映射、Mock报价和异步采购路径；所有真实通道关闭。
+    M2创单成功仅为AWAITING_PAYMENT，CREATE_UNKNOWN只查单，不能声称真实采购/付款。
     其他路径是后续里程碑的设计合同，尚未实现。
 servers:
   - url: http://localhost:8080/api/v1
@@ -513,83 +514,667 @@ paths:
             schema:
               $ref: '#/components/schemas/MockWebhookEvent'
       security: []
-  /sku-mappings:
-    post:
-      tags: [Sourcing]
-      operationId: upsertSkuMapping
-      summary: 创建/确认一个销售SKU到供应商SKU映射
+  /supplier-offers:
+    get:
+      tags:
+      - Sourcing
+      operationId: listMockSupplierOffers
+      summary: 租户合成货源列表，仅店主
       parameters:
-        - {$ref: '#/components/parameters/IdempotencyKey'}
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+          maximum: 100
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 10000
+      responses:
+        '200':
+          description: Mock / 待授权；不执行真实交易
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/M2OfferPageEnvelope'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '409':
+          $ref: '#/components/responses/ErrorResponse'
+        '422':
+          $ref: '#/components/responses/ErrorResponse'
+        '503':
+          $ref: '#/components/responses/ErrorResponse'
+  /supplier-offers/{offerId}/mock-config:
+    patch:
+      tags:
+      - Sourcing
+      operationId: configureMockSupplierOffer
+      summary: 模拟价格库存及故障，version CAS
+      parameters:
+      - name: offerId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - $ref: '#/components/parameters/CsrfToken'
+      responses:
+        '200':
+          description: Mock / 待授权；不执行真实交易
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/M2OfferEnvelope'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '409':
+          $ref: '#/components/responses/ErrorResponse'
+        '422':
+          $ref: '#/components/responses/ErrorResponse'
+        '503':
+          $ref: '#/components/responses/ErrorResponse'
       requestBody:
         required: true
         content:
           application/json:
-            schema: {$ref: '#/components/schemas/MappingCreateRequest'}
+            schema:
+              $ref: '#/components/schemas/M2OfferConfig'
+  /supplier-offers/{offerId}/quotes:
+    post:
+      tags:
+      - Sourcing
+      operationId: quoteMockSupplierOffer
+      summary: 获取持久报价快照，平台/地区能力独立核对
+      parameters:
+      - name: offerId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - $ref: '#/components/parameters/CsrfToken'
       responses:
         '200':
-          description: Success
+          description: Mock / 待授权；不执行真实交易
           content:
             application/json:
-              schema: {$ref: '#/components/schemas/MappingEnvelope'}
-        '403': {$ref: '#/components/responses/ErrorResponse'}
-        '409': {$ref: '#/components/responses/ErrorResponse'}
+              schema:
+                $ref: '#/components/schemas/M2QuoteEnvelope'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '409':
+          $ref: '#/components/responses/ErrorResponse'
+        '422':
+          $ref: '#/components/responses/ErrorResponse'
+        '503':
+          $ref: '#/components/responses/ErrorResponse'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/M2QuoteRequest'
+  /sku-mappings:
+    get:
+      tags:
+      - Sourcing
+      operationId: listSkuMappings
+      summary: 已确认备选与待审核映射列表
+      parameters:
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+          maximum: 100
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 10000
+      - name: storeId
+        in: query
+        required: false
+        schema:
+          type: string
+          format: uuid
+      - name: salesSkuId
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: status
+        in: query
+        required: false
+        schema:
+          type: string
+          enum:
+          - REVIEW
+          - CONFIRMED
+          - PAUSED
+      responses:
+        '200':
+          description: Mock / 待授权；不执行真实交易
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/M2MappingPageEnvelope'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '409':
+          $ref: '#/components/responses/ErrorResponse'
+        '422':
+          $ref: '#/components/responses/ErrorResponse'
+        '503':
+          $ref: '#/components/responses/ErrorResponse'
+    post:
+      tags:
+      - Sourcing
+      operationId: createSkuMapping
+      summary: 新建待审核映射，不能自动确认
+      parameters:
+      - $ref: '#/components/parameters/CsrfToken'
+      - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Mock / 待授权；不执行真实交易
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/M2MappingEnvelope'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '409':
+          $ref: '#/components/responses/ErrorResponse'
+        '422':
+          $ref: '#/components/responses/ErrorResponse'
+        '503':
+          $ref: '#/components/responses/ErrorResponse'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/M2MappingCreate'
+  /sku-mappings/{mappingId}:
+    patch:
+      tags:
+      - Sourcing
+      operationId: reviewSkuMapping
+      summary: 人工规格与首购审核后确认，或暂停映射
+      parameters:
+      - name: mappingId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - $ref: '#/components/parameters/CsrfToken'
+      responses:
+        '200':
+          description: Mock / 待授权；不执行真实交易
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/M2MappingEnvelope'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '409':
+          $ref: '#/components/responses/ErrorResponse'
+        '422':
+          $ref: '#/components/responses/ErrorResponse'
+        '503':
+          $ref: '#/components/responses/ErrorResponse'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/M2MappingUpdate'
+  /procurement-policy:
+    get:
+      tags:
+      - Purchases
+      operationId: getTenantProcurementPolicy
+      summary: 租户Mock采购策略，与支付策略独立
+      parameters: []
+      responses:
+        '200':
+          description: Mock / 待授权；不执行真实交易
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/M2PolicyEnvelope'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '409':
+          $ref: '#/components/responses/ErrorResponse'
+        '422':
+          $ref: '#/components/responses/ErrorResponse'
+        '503':
+          $ref: '#/components/responses/ErrorResponse'
+    put:
+      tags:
+      - Purchases
+      operationId: updateTenantProcurementPolicy
+      summary: 租户采购限额及预计利润，version CAS
+      parameters:
+      - $ref: '#/components/parameters/CsrfToken'
+      responses:
+        '200':
+          description: Mock / 待授权；不执行真实交易
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/M2PolicyEnvelope'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '409':
+          $ref: '#/components/responses/ErrorResponse'
+        '422':
+          $ref: '#/components/responses/ErrorResponse'
+        '503':
+          $ref: '#/components/responses/ErrorResponse'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/M2PolicyUpdate'
+  /procurement-policies/{storeId}:
+    get:
+      tags:
+      - Purchases
+      operationId: getStoreProcurementPolicy
+      summary: 店铺Mock采购策略，与支付策略独立
+      parameters:
+      - name: storeId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Mock / 待授权；不执行真实交易
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/M2PolicyEnvelope'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '409':
+          $ref: '#/components/responses/ErrorResponse'
+        '422':
+          $ref: '#/components/responses/ErrorResponse'
+        '503':
+          $ref: '#/components/responses/ErrorResponse'
+    put:
+      tags:
+      - Purchases
+      operationId: updateStoreProcurementPolicy
+      summary: 店铺采购限额及预计利润，version CAS
+      parameters:
+      - name: storeId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - $ref: '#/components/parameters/CsrfToken'
+      responses:
+        '200':
+          description: Mock / 待授权；不执行真实交易
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/M2PolicyEnvelope'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '409':
+          $ref: '#/components/responses/ErrorResponse'
+        '422':
+          $ref: '#/components/responses/ErrorResponse'
+        '503':
+          $ref: '#/components/responses/ErrorResponse'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/M2PolicyUpdate'
+  /purchase-intents/evaluate:
+    post:
+      tags:
+      - Purchases
+      operationId: evaluateProcurement
+      summary: 规则预览；结构化候选与阻塞原因，不创单
+      parameters:
+      - $ref: '#/components/parameters/CsrfToken'
+      responses:
+        '200':
+          description: Mock / 待授权；不执行真实交易
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/M2EvaluationEnvelope'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '409':
+          $ref: '#/components/responses/ErrorResponse'
+        '422':
+          $ref: '#/components/responses/ErrorResponse'
+        '503':
+          $ref: '#/components/responses/ErrorResponse'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/M2EvaluateRequest'
   /purchase-intents:
     get:
-      tags: [Purchases]
+      tags:
+      - Purchases
       operationId: listPurchaseIntents
+      summary: 租户及店铺权限范围内采购意图
       parameters:
-        - {$ref: '#/components/parameters/Limit'}
-        - {$ref: '#/components/parameters/Cursor'}
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+          maximum: 100
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 10000
+      - name: storeId
+        in: query
+        required: false
+        schema:
+          type: string
+          format: uuid
+      - name: state
+        in: query
+        required: false
+        schema:
+          type: string
+          enum:
+          - APPROVED
+          - CREATING
+          - CREATE_UNKNOWN
+          - AWAITING_PAYMENT
+          - REVIEW_REQUIRED
       responses:
         '200':
-          description: Success
+          description: Mock / 待授权；不执行真实交易
           content:
             application/json:
-              schema: {$ref: '#/components/schemas/IntentsEnvelope'}
-  /purchase-intents/{intentId}/approve:
+              schema:
+                $ref: '#/components/schemas/M2IntentPageEnvelope'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '409':
+          $ref: '#/components/responses/ErrorResponse'
+        '422':
+          $ref: '#/components/responses/ErrorResponse'
+        '503':
+          $ref: '#/components/responses/ErrorResponse'
     post:
-      tags: [Purchases]
-      operationId: approvePurchaseIntent
-      summary: 商家人工审核采购意图，不意味着扣款
+      tags:
+      - Purchases
+      operationId: createPurchaseIntent
+      summary: 引用报价唯一创建意图与Outbox，异步Mock创单
       parameters:
-        - {$ref: '#/components/parameters/IntentId'}
-        - {$ref: '#/components/parameters/IdempotencyKey'}
-      responses:
-        '200':
-          description: Success
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/IntentEnvelope'}
-        '409': {$ref: '#/components/responses/ErrorResponse'}
-  /purchase-intents/{intentId}/submit:
-    post:
-      tags: [Purchases]
-      operationId: submitPurchaseIntent
-      summary: 异步提交采购任务，不同步发起真实付款
-      parameters:
-        - {$ref: '#/components/parameters/IntentId'}
-        - {$ref: '#/components/parameters/IdempotencyKey'}
+      - $ref: '#/components/parameters/CsrfToken'
+      - $ref: '#/components/parameters/IdempotencyKey'
       responses:
         '202':
-          description: 已接受异步任务
+          description: Mock / 待授权；不执行真实交易
           content:
             application/json:
-              schema: {$ref: '#/components/schemas/JobEnvelope'}
-        '409': {$ref: '#/components/responses/ErrorResponse'}
-        '422': {$ref: '#/components/responses/ErrorResponse'}
-  /purchases:
+              schema:
+                $ref: '#/components/schemas/M2IntentEnvelope'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '409':
+          $ref: '#/components/responses/ErrorResponse'
+        '422':
+          $ref: '#/components/responses/ErrorResponse'
+        '503':
+          $ref: '#/components/responses/ErrorResponse'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/M2IntentCreate'
+  /purchase-intents/{intentId}:
     get:
-      tags: [Purchases]
-      operationId: listPurchases
+      tags:
+      - Purchases
+      operationId: getPurchaseIntent
+      summary: 采购意图、报价和冻结原因
       parameters:
-        - {$ref: '#/components/parameters/Limit'}
-        - {$ref: '#/components/parameters/Cursor'}
+      - name: intentId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
       responses:
         '200':
-          description: Success
+          description: Mock / 待授权；不执行真实交易
           content:
             application/json:
-              schema: {$ref: '#/components/schemas/PurchasesEnvelope'}
+              schema:
+                $ref: '#/components/schemas/M2IntentEnvelope'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '409':
+          $ref: '#/components/responses/ErrorResponse'
+        '422':
+          $ref: '#/components/responses/ErrorResponse'
+        '503':
+          $ref: '#/components/responses/ErrorResponse'
+  /purchases:
+    get:
+      tags:
+      - Purchases
+      operationId: listPurchases
+      summary: Mock采购单分页，创建成功仅待付款
+      parameters:
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+          maximum: 100
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 10000
+      - name: storeId
+        in: query
+        required: false
+        schema:
+          type: string
+          format: uuid
+      - name: state
+        in: query
+        required: false
+        schema:
+          type: string
+          enum:
+          - CREATING
+          - CREATE_UNKNOWN
+          - AWAITING_PAYMENT
+          - REVIEW_REQUIRED
+      responses:
+        '200':
+          description: Mock / 待授权；不执行真实交易
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/M2PurchasePageEnvelope'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '409':
+          $ref: '#/components/responses/ErrorResponse'
+        '422':
+          $ref: '#/components/responses/ErrorResponse'
+        '503':
+          $ref: '#/components/responses/ErrorResponse'
+  /purchases/{purchaseId}:
+    get:
+      tags:
+      - Purchases
+      operationId: getPurchase
+      summary: Mock采购详情；未知状态仅查单恢复
+      parameters:
+      - name: purchaseId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Mock / 待授权；不执行真实交易
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/M2PurchaseEnvelope'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '409':
+          $ref: '#/components/responses/ErrorResponse'
+        '422':
+          $ref: '#/components/responses/ErrorResponse'
+        '503':
+          $ref: '#/components/responses/ErrorResponse'
   /payment-policy:
     get:
       tags: [Payments]
@@ -1576,3 +2161,1037 @@ components:
           type: string
           format: uuid
       additionalProperties: false
+    M2Offer:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - supplierAccountId
+      - displayName
+      - externalSkuId
+      - compatibleSalesSkuId
+      - specification
+      - unitPriceFen
+      - shippingFen
+      - stock
+      - minimumQty
+      - cipherPlatforms
+      - regions
+      - quoteTtlSeconds
+      - fault
+      - version
+      - mode
+      properties:
+        id:
+          type: string
+          format: uuid
+        supplierAccountId:
+          type: string
+          format: uuid
+        displayName:
+          type: string
+        externalSkuId:
+          type: string
+        compatibleSalesSkuId:
+          type: string
+        specification:
+          type: string
+        unitPriceFen:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 9007199254740991
+        shippingFen:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 9007199254740991
+        stock:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 1000000
+        minimumQty:
+          type: integer
+          format: int64
+          minimum: 1
+          maximum: 1000000
+        cipherPlatforms:
+          type: array
+          items:
+            type: string
+            enum:
+            - DOUYIN
+            - TAOBAO
+        regions:
+          type: array
+          items:
+            type: string
+            enum:
+            - CN
+        quoteTtlSeconds:
+          type: integer
+          format: int64
+          minimum: 1
+          maximum: 3600
+        fault:
+          type: string
+          enum:
+          - NORMAL
+          - OUT_OF_STOCK
+          - PRICE_RISE
+          - QUOTE_TIMEOUT
+          - CREATE_TIMEOUT_BEFORE
+          - CREATE_TIMEOUT_AFTER
+          - QUERY_TIMEOUT
+        version:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 9007199254740991
+        mode:
+          type: string
+          enum:
+          - MOCK
+    M2OfferPage:
+      type: object
+      additionalProperties: false
+      required:
+      - items
+      - total
+      - limit
+      - offset
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/M2Offer'
+        total:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 9007199254740991
+        limit:
+          type: integer
+          format: int64
+          minimum: 1
+          maximum: 100
+        offset:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 10000
+    M2OfferPageEnvelope:
+      type: object
+      additionalProperties: false
+      required:
+      - data
+      - requestId
+      properties:
+        data:
+          $ref: '#/components/schemas/M2OfferPage'
+        requestId:
+          type: string
+          format: uuid
+    M2OfferEnvelope:
+      type: object
+      additionalProperties: false
+      required:
+      - data
+      - requestId
+      properties:
+        data:
+          $ref: '#/components/schemas/M2Offer'
+        requestId:
+          type: string
+          format: uuid
+    M2OfferConfig:
+      type: object
+      additionalProperties: false
+      required:
+      - version
+      properties:
+        unitPriceFen:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 1000000000
+        shippingFen:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 1000000000
+        stock:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 1000000
+        minimumQty:
+          type: integer
+          format: int64
+          minimum: 1
+          maximum: 1000000
+        cipherPlatforms:
+          type: array
+          items:
+            type: string
+            enum:
+            - DOUYIN
+            - TAOBAO
+        regions:
+          type: array
+          items:
+            type: string
+            enum:
+            - CN
+        quoteTtlSeconds:
+          type: integer
+          format: int64
+          minimum: 1
+          maximum: 3600
+        fault:
+          type: string
+          enum:
+          - NORMAL
+          - OUT_OF_STOCK
+          - PRICE_RISE
+          - QUOTE_TIMEOUT
+          - CREATE_TIMEOUT_BEFORE
+          - CREATE_TIMEOUT_AFTER
+          - QUERY_TIMEOUT
+        version:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 9007199254740991
+    M2QuoteRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - storeId
+      - qty
+      properties:
+        storeId:
+          type: string
+          format: uuid
+        qty:
+          type: integer
+          format: int64
+          minimum: 1
+          maximum: 1000000
+    M2Quote:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - offerId
+      - supplierAccountId
+      - storeId
+      - qty
+      - unitPriceFen
+      - shippingFen
+      - feeFen
+      - totalFen
+      - stock
+      - minimumQty
+      - cipherSupported
+      - regionSupported
+      - currency
+      - quotedAt
+      - expiresAt
+      - offerVersion
+      - mode
+      properties:
+        id:
+          type: string
+          format: uuid
+        offerId:
+          type: string
+          format: uuid
+        supplierAccountId:
+          type: string
+          format: uuid
+        storeId:
+          type: string
+          format: uuid
+        qty:
+          type: integer
+          format: int64
+          minimum: 1
+          maximum: 1000000
+        unitPriceFen:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 9007199254740991
+        shippingFen:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 9007199254740991
+        feeFen:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 9007199254740991
+        totalFen:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 9007199254740991
+        stock:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 1000000
+        minimumQty:
+          type: integer
+          format: int64
+          minimum: 1
+          maximum: 1000000
+        cipherSupported:
+          type: boolean
+        regionSupported:
+          type: boolean
+        currency:
+          type: string
+          enum:
+          - CNY
+        quotedAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+        offerVersion:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 9007199254740991
+        mode:
+          type: string
+          enum:
+          - MOCK
+    M2QuoteEnvelope:
+      type: object
+      additionalProperties: false
+      required:
+      - data
+      - requestId
+      properties:
+        data:
+          $ref: '#/components/schemas/M2Quote'
+        requestId:
+          type: string
+          format: uuid
+    M2Mapping:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - storeId
+      - salesSkuId
+      - supplierOfferId
+      - supplierName
+      - specification
+      - priority
+      - status
+      - confirmedBy
+      - confirmedAt
+      - version
+      - mode
+      properties:
+        id:
+          type: string
+          format: uuid
+        storeId:
+          type: string
+          format: uuid
+        salesSkuId:
+          type: string
+        supplierOfferId:
+          type: string
+          format: uuid
+        supplierName:
+          type: string
+        specification:
+          type: string
+        priority:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 10000
+        status:
+          type: string
+          enum:
+          - REVIEW
+          - CONFIRMED
+          - PAUSED
+        confirmedBy:
+          type: string
+          format: uuid
+          nullable: true
+        confirmedAt:
+          type: string
+          format: date-time
+          nullable: true
+        version:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 9007199254740991
+        mode:
+          type: string
+          enum:
+          - MOCK
+    M2MappingPage:
+      type: object
+      additionalProperties: false
+      required:
+      - items
+      - total
+      - limit
+      - offset
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/M2Mapping'
+        total:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 9007199254740991
+        limit:
+          type: integer
+          format: int64
+          minimum: 1
+          maximum: 100
+        offset:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 10000
+    M2MappingPageEnvelope:
+      type: object
+      additionalProperties: false
+      required:
+      - data
+      - requestId
+      properties:
+        data:
+          $ref: '#/components/schemas/M2MappingPage'
+        requestId:
+          type: string
+          format: uuid
+    M2MappingEnvelope:
+      type: object
+      additionalProperties: false
+      required:
+      - data
+      - requestId
+      properties:
+        data:
+          $ref: '#/components/schemas/M2Mapping'
+        requestId:
+          type: string
+          format: uuid
+    M2MappingCreate:
+      type: object
+      additionalProperties: false
+      required:
+      - storeId
+      - salesSkuId
+      - supplierOfferId
+      properties:
+        storeId:
+          type: string
+          format: uuid
+        salesSkuId:
+          type: string
+          minLength: 1
+          maxLength: 128
+          pattern: ^[A-Za-z0-9_-]+$
+        supplierOfferId:
+          type: string
+          format: uuid
+        priority:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 10000
+    M2MappingUpdate:
+      type: object
+      additionalProperties: false
+      required:
+      - version
+      - status
+      properties:
+        version:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 9007199254740991
+        status:
+          type: string
+          enum:
+          - REVIEW
+          - CONFIRMED
+          - PAUSED
+        priority:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 10000
+        reviewAcknowledged:
+          type: boolean
+    M2Policy:
+      type: object
+      additionalProperties: false
+      required:
+      - enabled
+      - maxSingleFen
+      - maxDailyFen
+      - maxShippingFen
+      - minProfitFen
+      - platformFeeFen
+      - reserveFen
+      - region
+      - version
+      - mode
+      properties:
+        enabled:
+          type: boolean
+        maxSingleFen:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 1000000000000
+        maxDailyFen:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 1000000000000
+        maxShippingFen:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 1000000000
+        minProfitFen:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 1000000000
+        platformFeeFen:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 1000000000
+        reserveFen:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 1000000000
+        region:
+          type: string
+          enum:
+          - CN
+        version:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 9007199254740991
+        mode:
+          type: string
+          enum:
+          - MOCK
+    M2PolicyEnvelope:
+      type: object
+      additionalProperties: false
+      required:
+      - data
+      - requestId
+      properties:
+        data:
+          $ref: '#/components/schemas/M2Policy'
+        requestId:
+          type: string
+          format: uuid
+    M2PolicyUpdate:
+      type: object
+      additionalProperties: false
+      required:
+      - enabled
+      - maxSingleFen
+      - maxDailyFen
+      - maxShippingFen
+      - minProfitFen
+      - platformFeeFen
+      - reserveFen
+      - region
+      - version
+      properties:
+        enabled:
+          type: boolean
+        maxSingleFen:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 1000000000000
+        maxDailyFen:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 1000000000000
+        maxShippingFen:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 1000000000
+        minProfitFen:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 1000000000
+        platformFeeFen:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 1000000000
+        reserveFen:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 1000000000
+        region:
+          type: string
+          enum:
+          - CN
+        version:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 9007199254740991
+    M2PolicySnapshot:
+      type: object
+      additionalProperties: false
+      required:
+      - tenantPolicy
+      - storePolicy
+      - effective
+      properties:
+        tenantPolicy:
+          $ref: '#/components/schemas/M2Policy'
+        storePolicy:
+          $ref: '#/components/schemas/M2Policy'
+        effective:
+          $ref: '#/components/schemas/M2Policy'
+    M2Reason:
+      type: object
+      additionalProperties: false
+      required:
+      - code
+      - message
+      properties:
+        code:
+          type: string
+          pattern: ^[A-Z][A-Z0-9_]{0,63}$
+        message:
+          type: string
+    M2Candidate:
+      type: object
+      additionalProperties: false
+      required:
+      - mappingId
+      - offerId
+      - priority
+      - allowed
+      - reasons
+      - quote
+      - estimatedProfitFen
+      properties:
+        mappingId:
+          type: string
+          format: uuid
+        offerId:
+          type: string
+          format: uuid
+        priority:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 10000
+        allowed:
+          type: boolean
+        reasons:
+          type: array
+          items:
+            $ref: '#/components/schemas/M2Reason'
+        quote:
+          $ref: '#/components/schemas/M2Quote'
+          nullable: true
+        estimatedProfitFen:
+          type: integer
+          format: int64
+          nullable: true
+    M2EvaluateRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - salesOrderItemId
+      properties:
+        salesOrderItemId:
+          type: string
+          format: uuid
+    M2Evaluation:
+      type: object
+      additionalProperties: false
+      required:
+      - salesOrderItemId
+      - storeId
+      - qty
+      - allowed
+      - reasons
+      - candidates
+      - mappingId
+      - mappingVersion
+      - salesItemVersion
+      - salesSourceVersion
+      - selectedQuote
+      - policySnapshot
+      - mode
+      properties:
+        salesOrderItemId:
+          type: string
+          format: uuid
+        storeId:
+          type: string
+          format: uuid
+        qty:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 9007199254740991
+        allowed:
+          type: boolean
+        reasons:
+          type: array
+          items:
+            $ref: '#/components/schemas/M2Reason'
+        candidates:
+          type: array
+          items:
+            $ref: '#/components/schemas/M2Candidate'
+        mappingId:
+          type: string
+          format: uuid
+          nullable: true
+        mappingVersion:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 9007199254740991
+          nullable: true
+        salesItemVersion:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 9007199254740991
+        salesSourceVersion:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 9007199254740991
+        selectedQuote:
+          $ref: '#/components/schemas/M2Quote'
+          nullable: true
+        policySnapshot:
+          $ref: '#/components/schemas/M2PolicySnapshot'
+        mode:
+          type: string
+          enum:
+          - MOCK
+    M2EvaluationEnvelope:
+      type: object
+      additionalProperties: false
+      required:
+      - data
+      - requestId
+      properties:
+        data:
+          $ref: '#/components/schemas/M2Evaluation'
+        requestId:
+          type: string
+          format: uuid
+    M2IntentCreate:
+      type: object
+      additionalProperties: false
+      required:
+      - salesOrderItemId
+      - quoteId
+      properties:
+        salesOrderItemId:
+          type: string
+          format: uuid
+        quoteId:
+          type: string
+          format: uuid
+    M2Intent:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - storeId
+      - salesOrderId
+      - salesOrderItemId
+      - mappingId
+      - qty
+      - state
+      - estimatedTotalFen
+      - currency
+      - quote
+      - reasons
+      - failureCode
+      - purchaseOrderId
+      - createdAt
+      - updatedAt
+      - version
+      - mode
+      properties:
+        id:
+          type: string
+          format: uuid
+        storeId:
+          type: string
+          format: uuid
+        salesOrderId:
+          type: string
+          format: uuid
+        salesOrderItemId:
+          type: string
+          format: uuid
+        mappingId:
+          type: string
+          format: uuid
+        qty:
+          type: integer
+          format: int64
+          minimum: 1
+          maximum: 1000000
+        state:
+          type: string
+          enum:
+          - APPROVED
+          - CREATING
+          - CREATE_UNKNOWN
+          - AWAITING_PAYMENT
+          - REVIEW_REQUIRED
+        estimatedTotalFen:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 9007199254740991
+        currency:
+          type: string
+          enum:
+          - CNY
+        quote:
+          $ref: '#/components/schemas/M2Quote'
+          nullable: true
+        reasons:
+          type: array
+          items:
+            $ref: '#/components/schemas/M2Reason'
+        failureCode:
+          type: string
+          nullable: true
+        purchaseOrderId:
+          type: string
+          format: uuid
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        version:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 9007199254740991
+        mode:
+          type: string
+          enum:
+          - MOCK
+    M2IntentPage:
+      type: object
+      additionalProperties: false
+      required:
+      - items
+      - total
+      - limit
+      - offset
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/M2Intent'
+        total:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 9007199254740991
+        limit:
+          type: integer
+          format: int64
+          minimum: 1
+          maximum: 100
+        offset:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 10000
+    M2IntentPageEnvelope:
+      type: object
+      additionalProperties: false
+      required:
+      - data
+      - requestId
+      properties:
+        data:
+          $ref: '#/components/schemas/M2IntentPage'
+        requestId:
+          type: string
+          format: uuid
+    M2IntentEnvelope:
+      type: object
+      additionalProperties: false
+      required:
+      - data
+      - requestId
+      properties:
+        data:
+          $ref: '#/components/schemas/M2Intent'
+        requestId:
+          type: string
+          format: uuid
+    M2Purchase:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - purchaseIntentId
+      - storeId
+      - salesOrderItemId
+      - supplierAccountId
+      - externalOrderId
+      - state
+      - totalFen
+      - currency
+      - createdAt
+      - updatedAt
+      - version
+      - mode
+      properties:
+        id:
+          type: string
+          format: uuid
+        purchaseIntentId:
+          type: string
+          format: uuid
+        storeId:
+          type: string
+          format: uuid
+        salesOrderItemId:
+          type: string
+          format: uuid
+        supplierAccountId:
+          type: string
+          format: uuid
+        externalOrderId:
+          type: string
+          nullable: true
+        state:
+          type: string
+          enum:
+          - CREATING
+          - CREATE_UNKNOWN
+          - AWAITING_PAYMENT
+          - REVIEW_REQUIRED
+        totalFen:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 9007199254740991
+        currency:
+          type: string
+          enum:
+          - CNY
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        version:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 9007199254740991
+        mode:
+          type: string
+          enum:
+          - MOCK
+    M2PurchasePage:
+      type: object
+      additionalProperties: false
+      required:
+      - items
+      - total
+      - limit
+      - offset
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/M2Purchase'
+        total:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 9007199254740991
+        limit:
+          type: integer
+          format: int64
+          minimum: 1
+          maximum: 100
+        offset:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 10000
+    M2PurchasePageEnvelope:
+      type: object
+      additionalProperties: false
+      required:
+      - data
+      - requestId
+      properties:
+        data:
+          $ref: '#/components/schemas/M2PurchasePage'
+        requestId:
+          type: string
+          format: uuid
+    M2PurchaseEnvelope:
+      type: object
+      additionalProperties: false
+      required:
+      - data
+      - requestId
+      properties:
+        data:
+          $ref: '#/components/schemas/M2Purchase'
+        requestId:
+          type: string
+          format: uuid

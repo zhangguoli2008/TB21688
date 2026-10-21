@@ -1,6 +1,6 @@
 # 智采云 SmartProcure
 
-当前交付：**M1 店铺与销售订单 Mock 演示**。在 M0 演示会话、租户/RBAC 和基础设施上增加店铺注册/授权状态模拟、合成订单签名事件、持久异步重查、订单筛选与详情。采购、支付、物流业务尚未实现；真实平台通道全部禁用。
+当前交付：**M2 SKU映射、报价与采购意图 Mock 演示**。在已验收 M1 店铺、销售订单和租户隔离之上，增加人工确认映射、合成供应商报价、采购规则和异步 Mock 创单。M2 自动化、Chrome交互及桌面断点验收记录见 `docs/29_M2实施计划与验收.md`。支付、物流业务尚未实现；真实平台通道全部禁用。
 
 ## 快速启动（Docker）
 
@@ -49,12 +49,12 @@ npm run dev
 
 ## 演示数据与安全边界
 
-- Flyway V1 保留原始结构，V2 增量管理 M1 店铺/订单事件字段与约束，禁止 `ddl-auto=update`。已有采购/支付草案表不代表业务开放。
-- 仅 `demo` / `test` 配置加载独立种子：2租户、3合成身份、每租户2店铺；客服按 member_store_access 只读 A 的第一家店。重复初始化不重置店铺修改；订单由 Mock 场景生成，不创建采购/付款记录，不含消费者隐私。
+- Flyway V1/V2 保持不变，V3 增量管理 M2 映射、报价、策略和采购约束，禁止 `ddl-auto=update`。支付及履约草案表存在不代表业务开放。
+- 仅 `demo` / `test` 配置加载独立种子：2租户、3合成身份、每租户2店铺和3个合成货源；客服按 member_store_access 只读 A 的第一家店及其采购。重复初始化不重置店铺/货源配置，也不预建已确认映射、采购或付款；销售单由 Mock 场景生成，采购单由后续已确认映射与规则决定，不含消费者隐私。
 - `SPSESSION` 为 HttpOnly/SameSite cookie，30分钟失效；每请求查验 ACTIVE 用户、成员、角色与租户。普通请求不能通过 Header/query/body 切换租户。会话仅本地单实例内存，生产认证、共享会话和正式安全准入尚未完成。
 - 演示写请求必须先 `GET /api/v1/auth/csrf`，携带返回的 `X-CSRF-TOKEN`；登录后重新获取。退出立即撤销；前端不保存认证 token 到 localStorage。
 - `APP_PROVIDER_MODE=MOCK`，`APP_REAL_PLATFORM_ENABLED`、`APP_REAL_PROCUREMENT_ENABLED`、`APP_REAL_PAYMENT_ENABLED` 默认 false；启用真实模式会失败关闭。`prod` 与演示配置组合被拒绝，不存在真实 Adapter、支付脚本或第三方密码收集。
-- M0 与 M1 店铺、销售单、Mock场景/回调以 `contracts/openapi.yaml` 为源；采购/支付等其余路径为未来设计，未实现。
+- M0/M1 与 M2 映射、Mock报价、策略、采购意图/采购单以 `contracts/openapi.yaml` 为源；支付/物流等其余路径为未来设计，未实现。
 
 ## M1 合成事件演示
 
@@ -66,7 +66,19 @@ Mock Webhook 只接受安全引用字段，HMAC 覆盖 `timestamp.nonce.integrat
 
 HTTP验收脚本依次从环境变量、项目 `.env`、公开伪默认读取该特定键，绝不打印签名密钥。M1 HTTP 可指定 `M1_BASE_URL=http://localhost:4173/api/v1`；使用原生公开伪默认时请显式提供相同值，避免被已有容器 `.env` 覆盖。
 
-M1 不提供采购/付款执行器。T-010、T-014、T-015 的边界验证不能代替 M2/M3 的完整业务回归；同账号多租户切换尚未实现，T-021 本轮验证独立会话并发和重新登录身份轮换。
+M1 原验收记录保留在 `docs/28_M1实施计划与验收.md`；M2 增量覆盖采购前退款复核和已存在采购对象的隔离。T-014 的支付策略完整流程仍待 M3；同账号多租户切换尚未实现，T-021 验证独立会话并发和重新登录身份轮换。
+
+## M2 可重复合成演示
+
+1. 店主在订单工作台选一个有效店铺生成 PAID 或 DUPLICATE 事件，等待销售单落库；没有已确认映射时不会采购。
+2. 从销售订单子项打开“商品与货源”，用 `MOCK-SKU-BLUE` 或 `MOCK-SKU-WHITE` 对照合成货源规格，创建 REVIEW 映射并明确核对后确认。蓝色 SKU 有两个独立备选供应商，可分别确认；标题相似不会自动确认。
+3. 获取报价/规则预览；检查整数分的商品总价、运费、预计利润和结构化阻塞原因。只在报价新鲜、授权有效、库存/密文/地区/金额规则通过时自动产生唯一采购意图；也可用预览报价显式申请，同一子项不会重复采购。
+4. “采购管理”查看异步结果。成功只到 **Mock 待付款**，没有支付动作。将货源故障设置为“创单后超时”再生成一个新销售单，可看到结果未知冻结和随后查单恢复；“创单前超时”查不到后转人工，绝不自动重下。演示结束可把故障恢复“正常”。
+5. 缺货、报价超时、仅支持另一来源平台密文、超限或利润不足均应阻断。单价/运费或配置在意图生成后变化，会在创单前复核时暂停；不会沿用旧报价静默加价。
+
+每个子项本轮仅支持一个履约切片。REVIEW_REQUIRED 或查单仍不明的 CREATE_UNKNOWN 会保留并冻结，未提供人工强制重下或付款入口；后续人工处置/售后不属于 M2。日额度按 UTC 采购意图创建日统计，包含在途及未知项，与支付预算分离；默认值仅用于 Mock（租户单笔100000分/日1000000分，店铺单笔50000分/日200000分）。
+
+`scripts/smoke-m2.py` 只用于专用本地演示环境：每次创建独立合成店铺/销售单，临时提高 Mock 租户采购限额并恢复；暂停本次映射、恢复货源配置，保留合成历史便于复核。可指定 `M2_BASE_URL=http://localhost:4173/api/v1`。Worker 可用 `APP_MOCK_WORKER_ENABLED=false` 总体关闭；测试通过专用 schema 和关闭调度控制时序，不拿异步等待替代断言。
 
 ## 构建与测试
 
@@ -101,15 +113,17 @@ npm audit --audit-level=high
 python3 -m venv .local/venv
 .local/venv/bin/pip install -r scripts/requirements.txt
 .local/venv/bin/openapi-spec-validator contracts/openapi.yaml
+.local/venv/bin/python apps/web/scripts/generate-m2-contract.py --check
 python3 scripts/check-safety.py
 .local/venv/bin/python scripts/smoke-m0.py
 .local/venv/bin/python scripts/smoke-m1.py
+.local/venv/bin/python scripts/smoke-m2.py
 M0_REQUIRE_HEALTHY=1 M0_BASE_URL=http://localhost:4173/api/v1 .local/venv/bin/python scripts/smoke-m0.py
 ```
 
 最后一条要求完整 Compose 的所有依赖为 UP，并验证 Nginx 代理、会话及CSRF。基础扫描只检查常见密钥模式和意外真实电商 URL，配合 npm audit；不代表生产安全审计或完整 Java 漏洞扫描。
 
-CI 位于 `.github/workflows/ci.yml`，含后端单元/PG集成、前端 lint/typecheck/test/build/audit、合同/基础安全及 Compose 两次启动后的 M0/M1 HTTP 验收。M1本地最终验收：后端62/62、前端49/49、容器直连/重启后代理各HTTP20项通过；[本轮真实GitHub Actions](https://github.com/zhangguoli2008/TB21688/actions/runs/39532516607)四个job全部成功。真实执行命令与已知边界见 [docs/28](docs/28_M1实施计划与验收.md)。以下为既有 M0 的历史证据：2026-10-21补验已完成本地act与[真实GitHub Actions](https://github.com/zhangguoli2008/TB21688/actions/runs/39464594083)，四个job均成功；后端31项、前端19项、云端HTTP两轮各8项全部通过。真实Compose构建、全依赖正常和保留数据卷重复启动也已验证。实际命令、数量及后续范围见 `docs/27_M0验证记录.md`，版本与任务依赖见 `docs/26_M0实施核对与计划.md`。
+CI 位于 `.github/workflows/ci.yml`，含后端单元/PG集成、前端 lint/typecheck/test/build/audit、合同及生成DTO一致性、基础安全，以及 Compose 两次启动后的 M0/M1/M2 HTTP 验收。M2 结果以 [docs/29](docs/29_M2实施计划与验收.md) 的真实执行记录为准。M1历史验收后端62/62、前端49/49，当前M1交付提交4e5e863的[真实GitHub Actions](https://github.com/zhangguoli2008/TB21688/actions/runs/39540075859)四job通过。M0/M1历史证据仍保存在docs/27和docs/28，不能代替M2验收。
 
 Spring Boot **3.5.16** 遵循既有3.x基线；该分支开源支持已结束，生产前需要明确升级或商业支持决策，见 [Spring 官方支持记录](https://api.spring.io/projects/spring-boot/generations/3.5.x)。本项目目前不满足正式上线准入。
 

@@ -71,7 +71,8 @@ public class StoreService {
     /** Called again inside every writer transaction, locking the store against revocation races. */
     public Store requireActive(UUID tenant,UUID store,boolean lock) {
         requireDemo();guard.checkDatabaseFlags(tenant);
-        var found=jdbc.query("select s.* from stores s join tenants t on t.id=s.tenant_id where s.tenant_id=? and s.id=? and t.status='ACTIVE'"+(lock?" for update of s,t":""),StoreService::row,tenant,store);
+        // Non-key locks still serialize suspension/revocation, while permitting tenant/store FK references.
+        var found=jdbc.query("select s.* from stores s join tenants t on t.id=s.tenant_id where s.tenant_id=? and s.id=? and t.status='ACTIVE'"+(lock?" for no key update of s,t":""),StoreService::row,tenant,store);
         if(found.isEmpty())throw M1Support.conflict("STORE_UNAVAILABLE");Store result=found.getFirst();
         if(!result.enabled()||!result.authStatus().equals("ACTIVE"))throw M1Support.conflict("AUTHORIZATION_UNAVAILABLE");return result;
     }

@@ -67,6 +67,7 @@ jobs:
           python-version: "3.11"
       - run: pip install -r scripts/requirements.txt
       - run: openapi-spec-validator contracts/openapi.yaml
+      - run: python3 apps/web/scripts/generate-m2-contract.py --check
       - run: python3 scripts/check-safety.py
       - run: git diff --check
   compose-smoke:
@@ -87,6 +88,9 @@ jobs:
       - run: python3 scripts/smoke-m1.py
         env:
           M1_BASE_URL: http://localhost:8080/api/v1
+      - run: python3 scripts/smoke-m2.py
+        env:
+          M2_BASE_URL: http://localhost:8080/api/v1
       - run: curl --fail http://localhost:4173/login
       - run: docker compose restart api && docker compose up --wait --wait-timeout 120
       - run: python3 scripts/smoke-m0.py
@@ -96,5 +100,8 @@ jobs:
       - run: python3 scripts/smoke-m1.py
         env:
           M1_BASE_URL: http://localhost:4173/api/v1
+      - run: python3 scripts/smoke-m2.py
+        env:
+          M2_BASE_URL: http://localhost:4173/api/v1
       - run: docker compose down
         if: always()

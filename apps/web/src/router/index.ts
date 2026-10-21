@@ -26,6 +26,12 @@ export function createAppRouter(history: RouterHistory = createWebHistory()) {
           { path: "stores/connect", name: "connect-store", component: () => import("../pages/ConnectStorePage.vue"), meta: {permission: "stores.manage", title: "连接 Mock 店铺"} },
           { path: "orders", name: "orders", component: () => import("../pages/OrdersPage.vue"), meta: {permission: "orders.read", title: "订单工作台"} },
           { path: "orders/:id", name: "order-detail", component: () => import("../pages/OrderDetailPage.vue"), meta: {permission: "orders.read", title: "销售订单详情"} },
+          { path: "catalog", redirect: "/catalog/mappings" },
+          { path: "catalog/mappings", name: "catalog-mappings", component: () => import("../pages/CatalogPage.vue"), meta: {permission: "sourcing.read", title: "SKU 映射管理"} },
+          { path: "catalog/sourcing", name: "catalog-sourcing", component: () => import("../pages/CatalogPage.vue"), meta: {permission: "sourcing.manage", title: "候选货源审核"} },
+          { path: "purchases", name: "purchases", component: () => import("../pages/PurchasesPage.vue"), meta: {permission: "procurement.read", title: "采购管理"} },
+          { path: "purchases/:id", name: "purchase-detail", component: () => import("../pages/PurchaseDetailPage.vue"), meta: {permission: "procurement.read", title: "采购订单详情"} },
+          { path: "purchase-intents/:id", name: "intent-detail", component: () => import("../pages/PurchaseDetailPage.vue"), meta: {permission: "procurement.read", title: "采购意图详情"} },
           {
             path: "403",
             name: "forbidden",
