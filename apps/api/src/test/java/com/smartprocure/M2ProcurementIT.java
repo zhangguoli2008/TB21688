@@ -190,6 +190,16 @@ class M2ProcurementIT {
         assertThat(jdbc.queryForObject("select count(*) from purchase_intents where tenant_id=? and sales_order_item_id=?",Integer.class,A,last)).isEqualTo(1);
         assertThat(jdbc.queryForObject("select count(*) from purchase_intents p join sales_order_items i on i.tenant_id=p.tenant_id and i.id=p.sales_order_item_id join sales_orders o on o.tenant_id=i.tenant_id and o.id=i.sales_order_id where p.tenant_id=? and o.store_id=? and i.external_sku_id='MOCK-BLOCKED'",Integer.class,A,f.store())).isZero();
     }
+    @Test void refundArrivingDuringFreshSupplierQuoteIsReadBeforeCreate() throws Exception {
+        Fixture f=fixture("NORMAL");create(f,evaluate(f),UUID.randomUUID().toString());
+        org.mockito.Mockito.doAnswer(invocation->{
+            var result=invocation.callRealMethod();
+            jdbc.update("update mock_order_authority set source_version=2,snapshot=jsonb_set(jsonb_set(snapshot,'{sourceStatus}','\"REFUNDED\"'),'{sourceVersion}','2') where tenant_id=? and store_id=? and external_order_id=?",A,f.store(),f.external());
+            return result;
+        }).when(supplier).quote(org.mockito.ArgumentMatchers.eq(A),org.mockito.ArgumentMatchers.eq(f.offer()),org.mockito.ArgumentMatchers.anyInt());
+        procure();assertThat(state(f.item())).isEqualTo("REVIEW_REQUIRED");
+        assertThat(jdbc.queryForObject("select count(*) from mock_purchase_authority where tenant_id=? and offer_id=?",Integer.class,A,f.offer())).isZero();
+    }
     @Test void ownerCanReadBoundedProcurementListsAndCannotReadAnotherTenantId() throws Exception {
         Session a=login("OWNER_A");
         mvc.perform(get("/api/v1/purchase-intents").session(a.session())).andExpect(status().isOk()).andExpect(jsonPath("$.data.items").isArray());

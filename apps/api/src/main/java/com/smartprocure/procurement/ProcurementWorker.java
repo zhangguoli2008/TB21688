@@ -42,8 +42,9 @@ public class ProcurementWorker {
                     tx.executeWithoutResult(status->{if(result.isPresent())complete(job,saved,result.get());else unresolved(job,"CREATE_NOT_FOUND",false);});
                 } else {
                     // Authority and fresh supplier quote calls deliberately run outside mutation transactions.
-                    var authority=sales.authoritativeOrder(job.tenant(),job.store(),job.external());
                     var evaluation=engine.evaluate(job.tenant(),job.item());
+                    // Read sales authority after quote latency, immediately before the fenced create preparation.
+                    var authority=sales.authoritativeOrder(job.tenant(),job.store(),job.external());
                     var request=tx.execute(status->prepare(job,evaluation,authority));
                     if(request==null)continue;
                     calledCreate=true;
