@@ -24,10 +24,6 @@ const session = useSessionStore();
 const route = useRoute();
 const router = useRouter();
 const logoutError = ref<ApiError | null>(null);
-const futureNavigation = [
-  { label: "物流与售后", icon: Van, stage: "M4" },
-  { label: "经营报表", icon: DataAnalysis, stage: "M4" },
-];
 async function logout() {
   logoutError.value = null;
   try {
@@ -46,7 +42,7 @@ async function logout() {
       <div class="app-brand">
         <span class="brand-symbol"><el-icon><Connection /></el-icon></span><span>智采云<small>SMARTPROCURE</small></span>
       </div>
-      <div class="workspace-label">商家工作台 <span>M3</span></div>
+      <div class="workspace-label">商家工作台 <span>M4</span></div>
       <nav aria-label="主导航">
         <RouterLink
           v-if="session.can('reports.read')"
@@ -63,16 +59,10 @@ async function logout() {
         <RouterLink v-if="session.can('sourcing.read')" class="navigation-item" :class="{active:route.path.startsWith('/catalog')}" to="/catalog/mappings" :aria-current="route.path.startsWith('/catalog')?'page':undefined"><el-icon><Goods /></el-icon><span>商品与货源</span></RouterLink>
         <RouterLink v-if="session.can('procurement.read')" class="navigation-item" :class="{active:route.path.startsWith('/purchases')||route.path.startsWith('/purchase-intents')}" to="/purchases" :aria-current="route.path.startsWith('/purchases')||route.path.startsWith('/purchase-intents')?'page':undefined"><el-icon><ShoppingCart /></el-icon><span>采购管理</span></RouterLink>
         <RouterLink v-if="session.can('payments.read')" class="navigation-item" :class="{active:route.path.startsWith('/payments')}" to="/payments/queue" :aria-current="route.path.startsWith('/payments')?'page':undefined"><el-icon><Wallet /></el-icon><span>支付中心</span></RouterLink>
-        <button
-          v-for="item in futureNavigation"
-          :key="item.label"
-          class="navigation-item future-nav"
-          type="button"
-          disabled
-          :aria-label="`${item.label}，${item.stage} 阶段开放`"
-        >
-          <el-icon><component :is="item.icon" /></el-icon><span>{{ item.label }}</span><small>{{ item.stage }}</small>
-        </button>
+        <RouterLink v-if="session.can('logistics.read')" class="navigation-item" :class="{active:route.path.startsWith('/shipments')}" to="/shipments"><el-icon><Van /></el-icon><span>物流中心</span></RouterLink>
+        <RouterLink v-if="session.can('aftersales.read')" class="navigation-item" :class="{active:route.path.startsWith('/aftersales')}" to="/aftersales"><el-icon><Box /></el-icon><span>售后中心</span></RouterLink>
+        <RouterLink v-if="session.can('reports.read')" class="navigation-item" :class="{active:route.path.startsWith('/reports')}" to="/reports"><el-icon><DataAnalysis /></el-icon><span>经营报表</span></RouterLink>
+        <RouterLink v-if="session.can('notifications.read')" class="navigation-item" :class="{active:route.path.startsWith('/notifications')}" to="/notifications"><el-icon><Document /></el-icon><span>站内通知</span></RouterLink>
         <p class="nav-caption">组织与设置</p>
         <button class="navigation-item future-nav" type="button" disabled>
           <el-icon><User /></el-icon><span>成员与权限</span><small>后续</small>
@@ -119,7 +109,7 @@ async function logout() {
         <RouterView :key="`${session.user?.currentTenantId}:${session.user?.userId}`" />
       </main>
       <footer class="workspace-footer">
-        智采云 <span>M3 双模式支付模拟 · Mock / 待授权</span><span>时间显示：Asia/Shanghai</span>
+        智采云 <span>M4 物流、售后与经营报表 · Mock / 待授权</span><span>时间显示：Asia/Shanghai</span>
       </footer>
     </div>
   </div>

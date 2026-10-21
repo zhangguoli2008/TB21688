@@ -42,7 +42,7 @@ async function login() {
           <el-icon><Lock /></el-icon><span>真实平台通道已关闭；不执行真实采购或付款</span>
         </div>
         <div class="milestone-line">
-          <span class="milestone-dot"></span>M3 双模式 Mock 支付
+          <span class="milestone-dot"></span>M4 物流、售后与经营
           <span class="muted">/ 本地演示</span>
         </div>
       </div>
@@ -64,7 +64,7 @@ async function login() {
             <el-option label="商家 B · 店主" value="OWNER_B" />
           </el-select>
           <div class="identity-note">
-            <el-icon><OfficeBuilding /></el-icon><span>身份与店铺范围由服务端会话确认。客服仅可查看授权范围内的店铺、订单与付款记录。</span>
+            <el-icon><OfficeBuilding /></el-icon><span>身份与店铺范围由服务端会话确认。客服可查看已分配店铺的业务记录并协调售后；模拟权威事件仅限店主。</span>
           </div>
           <ErrorPanel v-if="error" :error="error" title="登录未完成" />
           <el-button
@@ -78,7 +78,7 @@ async function login() {
           </el-button>
         </form>
         <p class="login-footnote">
-          M3 提供人工、自动与规则模式的合成付款、UNKNOWN 冻结及只读查单；不执行真实付款。
+          M4 提供合成包裹回填、售后协调、独立退款流水及经营报表；所有结果均为 Mock，真实采购与付款继续关闭。
         </p>
       </section>
     </section>

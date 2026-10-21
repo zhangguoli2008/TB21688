@@ -1,0 +1,1861 @@
+{
+  "M4EventAccepted": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "eventId",
+      "jobId",
+      "state",
+      "mode"
+    ],
+    "properties": {
+      "eventId": {
+        "type": "string"
+      },
+      "jobId": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "state": {
+        "type": "string",
+        "enum": [
+          "QUEUED"
+        ]
+      },
+      "mode": {
+        "type": "string",
+        "enum": [
+          "MOCK"
+        ]
+      }
+    }
+  },
+  "M4ShipmentSync": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "id",
+      "shipmentId",
+      "salesOrderId",
+      "salesOrderItemId",
+      "qty",
+      "trackingVersion",
+      "state",
+      "platformAck",
+      "lastErrorCode",
+      "retryCount",
+      "needsQuery",
+      "acknowledgedAt",
+      "updatedAt"
+    ],
+    "properties": {
+      "id": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "shipmentId": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "salesOrderId": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "salesOrderItemId": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "qty": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 1
+      },
+      "trackingVersion": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 1
+      },
+      "state": {
+        "type": "string",
+        "enum": [
+          "NOT_SENT",
+          "SENDING",
+          "ACKED",
+          "RETRY_WAIT",
+          "BLOCKED"
+        ]
+      },
+      "platformAck": {
+        "type": "string",
+        "nullable": true
+      },
+      "lastErrorCode": {
+        "type": "string",
+        "nullable": true
+      },
+      "retryCount": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0
+      },
+      "needsQuery": {
+        "type": "boolean"
+      },
+      "acknowledgedAt": {
+        "type": "string",
+        "format": "date-time",
+        "nullable": true
+      },
+      "updatedAt": {
+        "type": "string",
+        "format": "date-time"
+      }
+    }
+  },
+  "M4ShipmentVersion": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "trackingVersion",
+      "carrierCode",
+      "trackingNumber",
+      "sourceState",
+      "sourceVersion",
+      "qty",
+      "observedAt"
+    ],
+    "properties": {
+      "trackingVersion": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 1
+      },
+      "carrierCode": {
+        "type": "string"
+      },
+      "trackingNumber": {
+        "type": "string"
+      },
+      "sourceState": {
+        "type": "string",
+        "enum": [
+          "NOT_CREATED",
+          "LABEL_CREATED",
+          "SHIPPED",
+          "DELIVERED",
+          "LOST",
+          "EXCEPTION"
+        ]
+      },
+      "sourceVersion": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 1
+      },
+      "qty": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 1
+      },
+      "observedAt": {
+        "type": "string",
+        "format": "date-time"
+      }
+    }
+  },
+  "M4SyncConfig": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "behavior",
+      "version",
+      "mode"
+    ],
+    "properties": {
+      "behavior": {
+        "type": "string",
+        "enum": [
+          "NORMAL",
+          "SUBMIT_5XX",
+          "SUBMIT_TIMEOUT_AFTER",
+          "QUERY_TIMEOUT",
+          "AUTHORITY_MISMATCH",
+          "CORRECTION_BLOCKED"
+        ]
+      },
+      "version": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0
+      },
+      "mode": {
+        "type": "string",
+        "enum": [
+          "MOCK"
+        ]
+      }
+    }
+  },
+  "M4Shipment": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "id",
+      "purchaseOrderId",
+      "salesOrderId",
+      "salesOrderItemId",
+      "storeId",
+      "externalShipmentId",
+      "carrierCode",
+      "trackingNumber",
+      "qty",
+      "state",
+      "sourceState",
+      "sourceVersion",
+      "trackingVersion",
+      "version",
+      "shippedAt",
+      "updatedAt",
+      "currentSync",
+      "mode"
+    ],
+    "properties": {
+      "id": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "purchaseOrderId": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "salesOrderId": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "salesOrderItemId": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "storeId": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "externalShipmentId": {
+        "type": "string"
+      },
+      "carrierCode": {
+        "type": "string"
+      },
+      "trackingNumber": {
+        "type": "string"
+      },
+      "qty": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 1
+      },
+      "state": {
+        "type": "string",
+        "enum": [
+          "NOT_CREATED",
+          "LABEL_CREATED",
+          "SHIPPED",
+          "DELIVERED",
+          "LOST",
+          "EXCEPTION"
+        ]
+      },
+      "sourceState": {
+        "type": "string",
+        "enum": [
+          "NOT_CREATED",
+          "LABEL_CREATED",
+          "SHIPPED",
+          "DELIVERED",
+          "LOST",
+          "EXCEPTION"
+        ]
+      },
+      "sourceVersion": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 1
+      },
+      "trackingVersion": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 1
+      },
+      "version": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0
+      },
+      "shippedAt": {
+        "type": "string",
+        "format": "date-time",
+        "nullable": true
+      },
+      "updatedAt": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "currentSync": {
+        "$ref": "#/components/schemas/M4ShipmentSync",
+        "nullable": true
+      },
+      "mode": {
+        "type": "string",
+        "enum": [
+          "MOCK"
+        ]
+      }
+    }
+  },
+  "M4ShipmentDetail": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "id",
+      "purchaseOrderId",
+      "salesOrderId",
+      "salesOrderItemId",
+      "storeId",
+      "externalShipmentId",
+      "carrierCode",
+      "trackingNumber",
+      "qty",
+      "state",
+      "sourceState",
+      "sourceVersion",
+      "trackingVersion",
+      "version",
+      "shippedAt",
+      "updatedAt",
+      "currentSync",
+      "mode",
+      "versions",
+      "syncs",
+      "config"
+    ],
+    "properties": {
+      "id": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "purchaseOrderId": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "salesOrderId": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "salesOrderItemId": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "storeId": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "externalShipmentId": {
+        "type": "string"
+      },
+      "carrierCode": {
+        "type": "string"
+      },
+      "trackingNumber": {
+        "type": "string"
+      },
+      "qty": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 1
+      },
+      "state": {
+        "type": "string",
+        "enum": [
+          "NOT_CREATED",
+          "LABEL_CREATED",
+          "SHIPPED",
+          "DELIVERED",
+          "LOST",
+          "EXCEPTION"
+        ]
+      },
+      "sourceState": {
+        "type": "string",
+        "enum": [
+          "NOT_CREATED",
+          "LABEL_CREATED",
+          "SHIPPED",
+          "DELIVERED",
+          "LOST",
+          "EXCEPTION"
+        ]
+      },
+      "sourceVersion": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 1
+      },
+      "trackingVersion": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 1
+      },
+      "version": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0
+      },
+      "shippedAt": {
+        "type": "string",
+        "format": "date-time",
+        "nullable": true
+      },
+      "updatedAt": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "currentSync": {
+        "$ref": "#/components/schemas/M4ShipmentSync",
+        "nullable": true
+      },
+      "mode": {
+        "type": "string",
+        "enum": [
+          "MOCK"
+        ]
+      },
+      "versions": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/M4ShipmentVersion"
+        }
+      },
+      "syncs": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/M4ShipmentSync"
+        }
+      },
+      "config": {
+        "$ref": "#/components/schemas/M4SyncConfig"
+      }
+    }
+  },
+  "M4ShipmentEventRequest": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "eventId",
+      "externalShipmentId",
+      "sourceVersion",
+      "qty",
+      "carrierCode",
+      "trackingNumber",
+      "sourceState",
+      "behavior"
+    ],
+    "properties": {
+      "eventId": {
+        "type": "string",
+        "pattern": "^MOCK-[A-Za-z0-9_-]{1,100}$"
+      },
+      "externalShipmentId": {
+        "type": "string",
+        "pattern": "^MOCK-PKG-[A-Za-z0-9_-]{1,100}$"
+      },
+      "sourceVersion": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 1
+      },
+      "qty": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 1,
+        "maximum": 10000
+      },
+      "carrierCode": {
+        "type": "string",
+        "enum": [
+          "MOCK_EXPRESS"
+        ]
+      },
+      "trackingNumber": {
+        "type": "string",
+        "pattern": "^MOCK-TRACK-[A-Za-z0-9_-]{1,100}$"
+      },
+      "sourceState": {
+        "type": "string",
+        "enum": [
+          "SHIPPED",
+          "DELIVERED",
+          "EXCEPTION"
+        ]
+      },
+      "behavior": {
+        "type": "string",
+        "enum": [
+          "NORMAL",
+          "SUBMIT_5XX",
+          "SUBMIT_TIMEOUT_AFTER",
+          "QUERY_TIMEOUT",
+          "AUTHORITY_MISMATCH",
+          "CORRECTION_BLOCKED"
+        ]
+      }
+    }
+  },
+  "M4SyncConfigRequest": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "behavior",
+      "version"
+    ],
+    "properties": {
+      "behavior": {
+        "type": "string",
+        "enum": [
+          "NORMAL",
+          "SUBMIT_5XX",
+          "SUBMIT_TIMEOUT_AFTER",
+          "QUERY_TIMEOUT",
+          "AUTHORITY_MISMATCH",
+          "CORRECTION_BLOCKED"
+        ]
+      },
+      "version": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0
+      }
+    }
+  },
+  "M4Aftersale": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "id",
+      "salesOrderId",
+      "salesOrderItemId",
+      "storeId",
+      "sourceCaseId",
+      "type",
+      "sourceState",
+      "sourceVersion",
+      "qty",
+      "requestedRefundFen",
+      "currency",
+      "state",
+      "upstreamState",
+      "deadlineAt",
+      "reasonCode",
+      "version",
+      "createdAt",
+      "updatedAt",
+      "mode"
+    ],
+    "properties": {
+      "id": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "salesOrderId": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "salesOrderItemId": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "storeId": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "sourceCaseId": {
+        "type": "string"
+      },
+      "type": {
+        "type": "string",
+        "enum": [
+          "CANCEL",
+          "REFUND_ONLY",
+          "RETURN_REFUND"
+        ]
+      },
+      "sourceState": {
+        "type": "string",
+        "enum": [
+          "REQUESTED",
+          "CANCELLED",
+          "REFUNDING",
+          "REFUNDED",
+          "REJECTED",
+          "ARBITRATION"
+        ]
+      },
+      "sourceVersion": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 1
+      },
+      "qty": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 1
+      },
+      "requestedRefundFen": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0
+      },
+      "currency": {
+        "type": "string",
+        "enum": [
+          "CNY"
+        ]
+      },
+      "state": {
+        "type": "string",
+        "enum": [
+          "REQUESTED",
+          "UNDER_REVIEW",
+          "SUPPLIER_COORDINATION",
+          "RETURN_IN_TRANSIT",
+          "REFUND_PENDING",
+          "RESOLVED",
+          "REJECTED",
+          "MANUAL_REVIEW"
+        ]
+      },
+      "upstreamState": {
+        "type": "string",
+        "enum": [
+          "NO_PURCHASE",
+          "PENDING",
+          "CANCEL_REQUESTED",
+          "CANCELLED",
+          "REFUND_PENDING",
+          "REFUNDED",
+          "RETURN_REQUIRED",
+          "RETURN_RECEIVED",
+          "MANUAL_REVIEW",
+          "QUERY_PAYMENT",
+          "UNKNOWN",
+          "REJECTED"
+        ]
+      },
+      "deadlineAt": {
+        "type": "string",
+        "format": "date-time",
+        "nullable": true
+      },
+      "reasonCode": {
+        "type": "string",
+        "nullable": true
+      },
+      "version": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0
+      },
+      "createdAt": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "updatedAt": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "mode": {
+        "type": "string",
+        "enum": [
+          "MOCK"
+        ]
+      }
+    }
+  },
+  "M4Coordination": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "id",
+      "purchaseOrderId",
+      "state",
+      "upstreamSourceState",
+      "requestedRefundFen",
+      "cancellationReference",
+      "refundReference",
+      "updatedAt",
+      "version"
+    ],
+    "properties": {
+      "id": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "purchaseOrderId": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "state": {
+        "type": "string",
+        "enum": [
+          "NO_PURCHASE",
+          "PENDING",
+          "CANCEL_REQUESTED",
+          "CANCELLED",
+          "REFUND_PENDING",
+          "REFUNDED",
+          "RETURN_REQUIRED",
+          "RETURN_RECEIVED",
+          "MANUAL_REVIEW",
+          "QUERY_PAYMENT",
+          "UNKNOWN",
+          "REJECTED"
+        ]
+      },
+      "upstreamSourceState": {
+        "type": "string",
+        "enum": [
+          "NO_PURCHASE",
+          "PENDING",
+          "CANCEL_REQUESTED",
+          "CANCELLED",
+          "REFUND_PENDING",
+          "REFUNDED",
+          "RETURN_REQUIRED",
+          "RETURN_RECEIVED",
+          "MANUAL_REVIEW",
+          "QUERY_PAYMENT",
+          "UNKNOWN",
+          "REJECTED"
+        ]
+      },
+      "requestedRefundFen": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0
+      },
+      "cancellationReference": {
+        "type": "string",
+        "nullable": true
+      },
+      "refundReference": {
+        "type": "string",
+        "nullable": true
+      },
+      "updatedAt": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "version": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0
+      }
+    }
+  },
+  "M4Refund": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "id",
+      "aftersaleId",
+      "purchaseOrderId",
+      "direction",
+      "amountFen",
+      "currency",
+      "state",
+      "externalReference",
+      "verifiedAt",
+      "version",
+      "createdAt"
+    ],
+    "properties": {
+      "id": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "aftersaleId": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "purchaseOrderId": {
+        "type": "string",
+        "format": "uuid",
+        "nullable": true
+      },
+      "direction": {
+        "type": "string",
+        "enum": [
+          "SALES",
+          "SUPPLIER"
+        ]
+      },
+      "amountFen": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0
+      },
+      "currency": {
+        "type": "string",
+        "enum": [
+          "CNY"
+        ]
+      },
+      "state": {
+        "type": "string",
+        "enum": [
+          "PENDING",
+          "VERIFIED",
+          "FAILED",
+          "UNKNOWN"
+        ]
+      },
+      "externalReference": {
+        "type": "string",
+        "nullable": true
+      },
+      "verifiedAt": {
+        "type": "string",
+        "format": "date-time",
+        "nullable": true
+      },
+      "version": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0
+      },
+      "createdAt": {
+        "type": "string",
+        "format": "date-time"
+      }
+    }
+  },
+  "M4AftersaleDetail": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "id",
+      "salesOrderId",
+      "salesOrderItemId",
+      "storeId",
+      "sourceCaseId",
+      "type",
+      "sourceState",
+      "sourceVersion",
+      "qty",
+      "requestedRefundFen",
+      "currency",
+      "state",
+      "upstreamState",
+      "deadlineAt",
+      "reasonCode",
+      "version",
+      "createdAt",
+      "updatedAt",
+      "mode",
+      "coordinations",
+      "refunds"
+    ],
+    "properties": {
+      "id": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "salesOrderId": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "salesOrderItemId": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "storeId": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "sourceCaseId": {
+        "type": "string"
+      },
+      "type": {
+        "type": "string",
+        "enum": [
+          "CANCEL",
+          "REFUND_ONLY",
+          "RETURN_REFUND"
+        ]
+      },
+      "sourceState": {
+        "type": "string",
+        "enum": [
+          "REQUESTED",
+          "CANCELLED",
+          "REFUNDING",
+          "REFUNDED",
+          "REJECTED",
+          "ARBITRATION"
+        ]
+      },
+      "sourceVersion": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 1
+      },
+      "qty": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 1
+      },
+      "requestedRefundFen": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0
+      },
+      "currency": {
+        "type": "string",
+        "enum": [
+          "CNY"
+        ]
+      },
+      "state": {
+        "type": "string",
+        "enum": [
+          "REQUESTED",
+          "UNDER_REVIEW",
+          "SUPPLIER_COORDINATION",
+          "RETURN_IN_TRANSIT",
+          "REFUND_PENDING",
+          "RESOLVED",
+          "REJECTED",
+          "MANUAL_REVIEW"
+        ]
+      },
+      "upstreamState": {
+        "type": "string",
+        "enum": [
+          "NO_PURCHASE",
+          "PENDING",
+          "CANCEL_REQUESTED",
+          "CANCELLED",
+          "REFUND_PENDING",
+          "REFUNDED",
+          "RETURN_REQUIRED",
+          "RETURN_RECEIVED",
+          "MANUAL_REVIEW",
+          "QUERY_PAYMENT",
+          "UNKNOWN",
+          "REJECTED"
+        ]
+      },
+      "deadlineAt": {
+        "type": "string",
+        "format": "date-time",
+        "nullable": true
+      },
+      "reasonCode": {
+        "type": "string",
+        "nullable": true
+      },
+      "version": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0
+      },
+      "createdAt": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "updatedAt": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "mode": {
+        "type": "string",
+        "enum": [
+          "MOCK"
+        ]
+      },
+      "coordinations": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/M4Coordination"
+        }
+      },
+      "refunds": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/M4Refund"
+        }
+      }
+    }
+  },
+  "M4AftersaleEventRequest": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "eventId",
+      "sourceCaseId",
+      "type",
+      "sourceState",
+      "sourceVersion",
+      "salesOrderItemId",
+      "qty",
+      "requestedRefundFen"
+    ],
+    "properties": {
+      "eventId": {
+        "type": "string",
+        "pattern": "^MOCK-[A-Za-z0-9_-]{1,100}$"
+      },
+      "sourceCaseId": {
+        "type": "string",
+        "pattern": "^MOCK-CASE-[A-Za-z0-9_-]{1,100}$"
+      },
+      "type": {
+        "type": "string",
+        "enum": [
+          "CANCEL",
+          "REFUND_ONLY",
+          "RETURN_REFUND"
+        ]
+      },
+      "sourceState": {
+        "type": "string",
+        "enum": [
+          "REQUESTED",
+          "CANCELLED",
+          "REFUNDING",
+          "REFUNDED",
+          "REJECTED",
+          "ARBITRATION"
+        ]
+      },
+      "sourceVersion": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 1
+      },
+      "salesOrderItemId": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "qty": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 1,
+        "maximum": 10000
+      },
+      "requestedRefundFen": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0
+      }
+    }
+  },
+  "M4AftersaleActionRequest": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "action",
+      "version"
+    ],
+    "properties": {
+      "action": {
+        "type": "string",
+        "enum": [
+          "ACKNOWLEDGE",
+          "RETURN_SENT",
+          "REQUEST_SUPPLIER_CANCEL",
+          "REQUEST_SUPPLIER_REFUND"
+        ]
+      },
+      "version": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0
+      }
+    }
+  },
+  "M4SupplierAftersaleEventRequest": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "eventId",
+      "purchaseOrderId",
+      "sourceVersion",
+      "state",
+      "refundAmountFen"
+    ],
+    "properties": {
+      "eventId": {
+        "type": "string",
+        "pattern": "^MOCK-[A-Za-z0-9_-]{1,100}$"
+      },
+      "purchaseOrderId": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "sourceVersion": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 1
+      },
+      "state": {
+        "type": "string",
+        "enum": [
+          "NO_PURCHASE",
+          "PENDING",
+          "CANCEL_REQUESTED",
+          "CANCELLED",
+          "REFUND_PENDING",
+          "REFUNDED",
+          "RETURN_REQUIRED",
+          "RETURN_RECEIVED",
+          "MANUAL_REVIEW",
+          "QUERY_PAYMENT",
+          "UNKNOWN",
+          "REJECTED"
+        ]
+      },
+      "refundAmountFen": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0
+      }
+    }
+  },
+  "M4ReportOverview": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "salesPaidFen",
+      "purchasePaidFen",
+      "estimatedPurchaseFen",
+      "estimatedProfitFen",
+      "salesRefundedFen",
+      "supplierRefundedFen",
+      "netCashFlowFen",
+      "actualNetProfitFen",
+      "unreconciledCount",
+      "unreconciledPaymentFen",
+      "pendingSupplierRefundFen",
+      "orderCount",
+      "profitStatus",
+      "currency",
+      "basis",
+      "fromTime",
+      "toTime",
+      "asOf",
+      "projectionPendingCount",
+      "mode"
+    ],
+    "properties": {
+      "salesPaidFen": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0
+      },
+      "purchasePaidFen": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0
+      },
+      "estimatedPurchaseFen": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0
+      },
+      "estimatedProfitFen": {
+        "type": "integer",
+        "format": "int64"
+      },
+      "salesRefundedFen": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0
+      },
+      "supplierRefundedFen": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0
+      },
+      "netCashFlowFen": {
+        "type": "integer",
+        "format": "int64"
+      },
+      "actualNetProfitFen": {
+        "type": "integer",
+        "format": "int64",
+        "nullable": true
+      },
+      "unreconciledCount": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0
+      },
+      "unreconciledPaymentFen": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0
+      },
+      "pendingSupplierRefundFen": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0
+      },
+      "orderCount": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0
+      },
+      "profitStatus": {
+        "type": "string",
+        "enum": [
+          "INCOMPLETE_COSTS"
+        ]
+      },
+      "currency": {
+        "type": "string",
+        "enum": [
+          "CNY"
+        ]
+      },
+      "basis": {
+        "type": "string",
+        "enum": [
+          "ORDER_CREATED_COHORT"
+        ]
+      },
+      "fromTime": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "toTime": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "asOf": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "projectionPendingCount": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0
+      },
+      "mode": {
+        "type": "string",
+        "enum": [
+          "MOCK"
+        ]
+      }
+    }
+  },
+  "M4ReportOrder": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "salesOrderId",
+      "storeId",
+      "externalOrderId",
+      "createdAt",
+      "salesPaidFen",
+      "purchasePaidFen",
+      "estimatedPurchaseFen",
+      "estimatedProfitFen",
+      "salesRefundedFen",
+      "supplierRefundedFen",
+      "netCashFlowFen",
+      "actualNetProfitFen",
+      "unreconciledCount",
+      "unreconciledPaymentFen",
+      "pendingSupplierRefundFen",
+      "asOf",
+      "mode"
+    ],
+    "properties": {
+      "salesOrderId": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "storeId": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "externalOrderId": {
+        "type": "string"
+      },
+      "createdAt": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "salesPaidFen": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0
+      },
+      "purchasePaidFen": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0
+      },
+      "estimatedPurchaseFen": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0
+      },
+      "estimatedProfitFen": {
+        "type": "integer",
+        "format": "int64"
+      },
+      "salesRefundedFen": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0
+      },
+      "supplierRefundedFen": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0
+      },
+      "netCashFlowFen": {
+        "type": "integer",
+        "format": "int64"
+      },
+      "actualNetProfitFen": {
+        "type": "integer",
+        "format": "int64",
+        "nullable": true
+      },
+      "unreconciledCount": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0
+      },
+      "unreconciledPaymentFen": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0
+      },
+      "pendingSupplierRefundFen": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0
+      },
+      "asOf": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "mode": {
+        "type": "string",
+        "enum": [
+          "MOCK"
+        ]
+      }
+    }
+  },
+  "M4RefreshAccepted": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "state",
+      "queuedCount",
+      "mode"
+    ],
+    "properties": {
+      "state": {
+        "type": "string",
+        "enum": [
+          "QUEUED"
+        ]
+      },
+      "queuedCount": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0
+      },
+      "mode": {
+        "type": "string",
+        "enum": [
+          "MOCK"
+        ]
+      }
+    }
+  },
+  "M4Notification": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "id",
+      "storeId",
+      "salesOrderId",
+      "category",
+      "code",
+      "createdAt",
+      "readAt",
+      "mode"
+    ],
+    "properties": {
+      "id": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "storeId": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "salesOrderId": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "category": {
+        "type": "string"
+      },
+      "code": {
+        "type": "string"
+      },
+      "createdAt": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "readAt": {
+        "type": "string",
+        "format": "date-time",
+        "nullable": true
+      },
+      "mode": {
+        "type": "string",
+        "enum": [
+          "MOCK"
+        ]
+      }
+    }
+  },
+  "M4Activity": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "id",
+      "salesOrderId",
+      "source",
+      "action",
+      "entityType",
+      "entityId",
+      "code",
+      "actorId",
+      "occurredAt",
+      "mode"
+    ],
+    "properties": {
+      "id": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "salesOrderId": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "source": {
+        "type": "string"
+      },
+      "action": {
+        "type": "string"
+      },
+      "entityType": {
+        "type": "string"
+      },
+      "entityId": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "code": {
+        "type": "string",
+        "nullable": true
+      },
+      "actorId": {
+        "type": "string",
+        "format": "uuid",
+        "nullable": true
+      },
+      "occurredAt": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "mode": {
+        "type": "string",
+        "enum": [
+          "MOCK"
+        ]
+      }
+    }
+  },
+  "M4ShipmentPage": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "items",
+      "total",
+      "limit",
+      "offset"
+    ],
+    "properties": {
+      "items": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/M4Shipment"
+        }
+      },
+      "total": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0
+      },
+      "limit": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 1,
+        "maximum": 100
+      },
+      "offset": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0,
+        "maximum": 10000
+      }
+    }
+  },
+  "M4AftersalePage": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "items",
+      "total",
+      "limit",
+      "offset"
+    ],
+    "properties": {
+      "items": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/M4Aftersale"
+        }
+      },
+      "total": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0
+      },
+      "limit": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 1,
+        "maximum": 100
+      },
+      "offset": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0,
+        "maximum": 10000
+      }
+    }
+  },
+  "M4ReportOrderPage": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "items",
+      "total",
+      "limit",
+      "offset"
+    ],
+    "properties": {
+      "items": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/M4ReportOrder"
+        }
+      },
+      "total": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0
+      },
+      "limit": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 1,
+        "maximum": 100
+      },
+      "offset": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0,
+        "maximum": 10000
+      }
+    }
+  },
+  "M4NotificationPage": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "items",
+      "total",
+      "limit",
+      "offset"
+    ],
+    "properties": {
+      "items": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/M4Notification"
+        }
+      },
+      "total": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0
+      },
+      "limit": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 1,
+        "maximum": 100
+      },
+      "offset": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0,
+        "maximum": 10000
+      }
+    }
+  },
+  "M4ActivityPage": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "items",
+      "total",
+      "limit",
+      "offset"
+    ],
+    "properties": {
+      "items": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/M4Activity"
+        }
+      },
+      "total": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0
+      },
+      "limit": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 1,
+        "maximum": 100
+      },
+      "offset": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0,
+        "maximum": 10000
+      }
+    }
+  },
+  "M4EventAcceptedEnvelope": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "data",
+      "requestId"
+    ],
+    "properties": {
+      "data": {
+        "$ref": "#/components/schemas/M4EventAccepted"
+      },
+      "requestId": {
+        "type": "string",
+        "format": "uuid"
+      }
+    }
+  },
+  "M4ShipmentPageEnvelope": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "data",
+      "requestId"
+    ],
+    "properties": {
+      "data": {
+        "$ref": "#/components/schemas/M4ShipmentPage"
+      },
+      "requestId": {
+        "type": "string",
+        "format": "uuid"
+      }
+    }
+  },
+  "M4ShipmentDetailEnvelope": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "data",
+      "requestId"
+    ],
+    "properties": {
+      "data": {
+        "$ref": "#/components/schemas/M4ShipmentDetail"
+      },
+      "requestId": {
+        "type": "string",
+        "format": "uuid"
+      }
+    }
+  },
+  "M4AftersalePageEnvelope": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "data",
+      "requestId"
+    ],
+    "properties": {
+      "data": {
+        "$ref": "#/components/schemas/M4AftersalePage"
+      },
+      "requestId": {
+        "type": "string",
+        "format": "uuid"
+      }
+    }
+  },
+  "M4AftersaleDetailEnvelope": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "data",
+      "requestId"
+    ],
+    "properties": {
+      "data": {
+        "$ref": "#/components/schemas/M4AftersaleDetail"
+      },
+      "requestId": {
+        "type": "string",
+        "format": "uuid"
+      }
+    }
+  },
+  "M4ReportOverviewEnvelope": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "data",
+      "requestId"
+    ],
+    "properties": {
+      "data": {
+        "$ref": "#/components/schemas/M4ReportOverview"
+      },
+      "requestId": {
+        "type": "string",
+        "format": "uuid"
+      }
+    }
+  },
+  "M4ReportOrderPageEnvelope": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "data",
+      "requestId"
+    ],
+    "properties": {
+      "data": {
+        "$ref": "#/components/schemas/M4ReportOrderPage"
+      },
+      "requestId": {
+        "type": "string",
+        "format": "uuid"
+      }
+    }
+  },
+  "M4RefreshAcceptedEnvelope": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "data",
+      "requestId"
+    ],
+    "properties": {
+      "data": {
+        "$ref": "#/components/schemas/M4RefreshAccepted"
+      },
+      "requestId": {
+        "type": "string",
+        "format": "uuid"
+      }
+    }
+  },
+  "M4NotificationPageEnvelope": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "data",
+      "requestId"
+    ],
+    "properties": {
+      "data": {
+        "$ref": "#/components/schemas/M4NotificationPage"
+      },
+      "requestId": {
+        "type": "string",
+        "format": "uuid"
+      }
+    }
+  },
+  "M4NotificationEnvelope": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "data",
+      "requestId"
+    ],
+    "properties": {
+      "data": {
+        "$ref": "#/components/schemas/M4Notification"
+      },
+      "requestId": {
+        "type": "string",
+        "format": "uuid"
+      }
+    }
+  },
+  "M4ActivityPageEnvelope": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "data",
+      "requestId"
+    ],
+    "properties": {
+      "data": {
+        "$ref": "#/components/schemas/M4ActivityPage"
+      },
+      "requestId": {
+        "type": "string",
+        "format": "uuid"
+      }
+    }
+  }
+}

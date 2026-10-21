@@ -14,6 +14,7 @@ import {
   type ApiError,
   type SystemStatus,
 } from "../api/client";
+import M4DashboardSummary from "../components/M4DashboardSummary.vue";
 import ErrorPanel from "../components/ErrorPanel.vue";
 
 const loading = ref(true);
@@ -81,8 +82,8 @@ onMounted(loadStatus);
       <section class="summary-card">
         <span class="summary-icon"><el-icon><DataLine /></el-icon></span>
         <div>
-          <span class="card-label">当前交付阶段</span><strong>M3 <small>Mock 支付</small></strong>
-          <p>独立付款尝试、UNKNOWN 冻结与权威查单</p>
+          <span class="card-label">当前交付阶段</span><strong>M4 <small>Mock 履约</small></strong>
+          <p>物流、售后协调与经营金额分别核验</p>
         </div>
       </section>
     </div>
@@ -136,23 +137,24 @@ onMounted(loadStatus);
         <el-icon><Warning /></el-icon>真实通道关闭。服务可达不代表已获得平台授权或交易能力。
       </p>
     </section>
+    <M4DashboardSummary />
     <section class="panel business-empty" aria-labelledby="business-title">
       <div class="empty-illustration">
         <el-icon><Document /></el-icon>
       </div>
       <div>
         <el-tag size="small" type="info" effect="plain">
-          M3 Mock 采购与支付演示
+          M4 Mock 采购与履约演示
         </el-tag>
         <h2 id="business-title">从 Mock 店铺开始订单演示</h2>
         <p>
-          连接 Mock 店铺，生成合成事件，在订单工作台查看销售金额与状态。<br />从销售子项核验 SKU、预览规则并查看 Mock 采购进度；可在支付中心模拟付款并核验权威状态；履约待 M4。
+          连接 Mock 店铺，生成合成事件，在订单工作台查看销售金额与状态。<br />从销售子项核验 SKU、预览规则并查看 Mock 采购进度；可在支付中心模拟付款并核验权威状态；可在物流与售后中心查看 Mock 履约及协调结果。
         </p>
         <div class="inline-actions dashboard-entry"><RouterLink to="/stores"><el-button>店铺中心</el-button></RouterLink><RouterLink to="/orders"><el-button type="primary">进入订单工作台</el-button></RouterLink></div>
       </div>
     </section>
     <section class="scope-note">
-      <strong>M3 演示范围</strong><span>本地会话</span><span>当前租户</span><span>Mock 店铺授权</span><span>合成销售订单</span><span>真实服务状态</span><span class="muted">无真实交易</span>
+      <strong>M4 演示范围</strong><span>本地会话</span><span>当前租户</span><span>Mock 店铺授权</span><span>合成销售订单</span><span>真实服务状态</span><span class="muted">无真实交易</span>
     </section>
   </div>
 </template>

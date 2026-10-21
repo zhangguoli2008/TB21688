@@ -48,8 +48,8 @@ describe('M2 views',()=>{
   const {wrapper}=await setup(CatalogPage,`/catalog/sourcing?storeId=${store.id}&salesSkuId=MOCK-SKU-BLUE&itemId=${itemId}`);await flushPromises();await wrapper.findAll('form').find(form=>form.find('[name="salesOrderItemId"]').exists())!.trigger('submit');await flushPromises();await wrapper.get('[data-testid="create-intent"]').trigger('click');expect(writes).toHaveLength(0);await wrapper.get('[data-testid="confirm-intent"]').trigger('click');await flushPromises();await wrapper.get('[data-testid="confirm-intent"]').trigger('click');await flushPromises();expect(writes).toHaveLength(2);expect(new Headers(writes[0]!.headers).get('Idempotency-Key')).toBe(new Headers(writes[1]!.headers).get('Idempotency-Key'));wrapper.unmount();
  });
  it('renders unknown creation as frozen and offers only a read refresh',async()=>{
-  vi.stubGlobal('fetch',vi.fn(async(path:string)=>path.includes('/purchase-intents/')?json({...intent,state:'CREATE_UNKNOWN',purchaseOrderId:purchase.id}):json(purchase)));
-  const {wrapper}=await setup(PurchaseDetailPage,`/purchases/${purchase.id}`,m2Support);await flushPromises();expect(wrapper.text()).toContain('请勿重新下单');expect(wrapper.text()).toContain('¥40.00');expect(wrapper.text()).not.toContain('去付款');expect(wrapper.findAll('button').map(button=>button.text())).toEqual(['刷新状态']);wrapper.unmount();
+  vi.stubGlobal('fetch',vi.fn(async(path:string)=>path.includes('/activity?')?list([]):path.includes('/purchase-intents/')?json({...intent,state:'CREATE_UNKNOWN',purchaseOrderId:purchase.id}):json(purchase)));
+  const {wrapper}=await setup(PurchaseDetailPage,`/purchases/${purchase.id}`,m2Support);await flushPromises();expect(wrapper.text()).toContain('请勿重新下单');expect(wrapper.text()).toContain('¥40.00');expect(wrapper.text()).not.toContain('去付款');expect(wrapper.findAll('button').map(button=>button.text())).toEqual(['刷新状态','刷新时间轴','上一页','下一页']);wrapper.unmount();
  });
  it('shows list errors separately from successful emptiness and syncs filters in URL',async()=>{
   vi.stubGlobal('fetch',vi.fn(async(path:string)=>path.includes('/stores')?list([store]):apiError(503,'PURCHASE_UNAVAILABLE')));

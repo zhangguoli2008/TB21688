@@ -1,3 +1,4 @@
+import * as m4 from '../domain/m4';
 import { contract as m3Contract, paymentQuery, type PaymentFilters, type Policy as PaymentPolicy, type PolicyUpdate as PaymentPolicyUpdate, type MandatePage, type Mandate, type MandateUpdate, type PaymentPage, type PaymentView, type CheckoutEntry, type MockCheckout, type ReceiptRequest, type Config as PaymentConfig, type ConfigUpdate as PaymentConfigUpdate, type ReconciliationPage } from '../domain/m3';
 import { contract, m2Query, type M2Filters, type Offer, type OfferPage, type OfferConfig, type Quote, type QuoteRequest, type Mapping, type MappingPage, type MappingCreate, type MappingUpdate, type Policy, type PolicyUpdate, type Evaluation, type Intent, type IntentPage, type IntentCreate, type Purchase, type PurchasePage } from '../domain/m2';
 import { isStore, isOrder, isOrderDetail, isPage, isStoreCreate, isStoreUpdate, isScenario, isScenarioResult, orderQuery, uuid, type StoreCreate, type StoreUpdate, type OrderFilters, type ScenarioRequest } from "../domain/m1";
@@ -290,6 +291,38 @@ export function createApiClient(
       return post(`/mock/purchases/${id}/payment-config`,m3Contract<PaymentConfig>('M3Config'),body,{},'PATCH');
     },
     listReconciliations:(filters:PaymentFilters={limit:20,offset:0})=>request(`/payment-reconciliations?${new URLSearchParams(paymentQuery(filters,false))}`,m3Contract<ReconciliationPage>('M3ReconciliationPage')),
+    listShipments:(filters:Partial<m4.M4Filters>={})=>request(`/shipments?${new URLSearchParams(m4.m4Query(filters,'shipment'))}`,m4.contract<m4.ShipmentPage>('M4ShipmentPage')),
+    listAftersales:(filters:Partial<m4.M4Filters>={})=>request(`/aftersales?${new URLSearchParams(m4.m4Query(filters,'aftersale'))}`,m4.contract<m4.AftersalePage>('M4AftersalePage')),
+    listReportOrders:(filters:Partial<m4.M4Filters>={})=>request(`/reports/orders?${new URLSearchParams(m4.m4Query(filters,'report'))}`,(value):value is m4.ReportOrderPage=>m4.contract<m4.ReportOrderPage>('M4ReportOrderPage')(value)&&value.items.every(item=>item.actualNetProfitFen===null)),
+    listNotifications:(filters:Partial<m4.M4Filters>={})=>request(`/notifications?${new URLSearchParams(m4.m4Query(filters,'notification'))}`,m4.contract<m4.NotificationPage>('M4NotificationPage')),
+    getShipment:(id:string)=>request(`/shipments/${encodeURIComponent(id)}`,m4.contract<m4.ShipmentDetail>('M4ShipmentDetail')),
+    getAftersale:(id:string)=>request(`/aftersales/${encodeURIComponent(id)}`,m4.contract<m4.AftersaleDetail>('M4AftersaleDetail')),
+    getReportOverview:(filters:Partial<m4.M4Filters>={})=>request(`/reports/overview?${new URLSearchParams(m4.m4Query(filters,'report',false))}`,(value):value is m4.ReportOverview=>m4.contract<m4.ReportOverview>('M4ReportOverview')(value)&&value.actualNetProfitFen===null),
+    listOrderActivity:(id:string,filters:Partial<m4.M4Filters>={})=>request(`/orders/${encodeURIComponent(id)}/activity?${new URLSearchParams(m4.m4Query(filters,'activity'))}`,m4.contract<m4.ActivityPage>('M4ActivityPage')),
+    async simulateShipment(id:string,body:m4.ShipmentEventRequest,key:string){
+      if(!uuid(id)||!key||!m4.contract<m4.ShipmentEventRequest>('M4ShipmentEventRequest')(body))throw new ApiError('INVALID_REQUEST','仅支持有效的合成 Mock 请求、整数分和当前版本。');
+      return post(`/mock/purchases/${id}/shipment-events`,m4.contract<m4.EventAccepted>('M4EventAccepted'),body,{'Idempotency-Key':key},'POST');
+    },
+    async configureShipmentSync(id:string,body:m4.SyncConfigRequest,key:string){
+      if(!uuid(id)||!key||!m4.contract<m4.SyncConfigRequest>('M4SyncConfigRequest')(body))throw new ApiError('INVALID_REQUEST','仅支持有效的合成 Mock 请求、整数分和当前版本。');
+      return post(`/mock/shipments/${id}/sync-config`,m4.contract<m4.ShipmentDetail>('M4ShipmentDetail'),body,{'Idempotency-Key':key},'PATCH');
+    },
+    async updateAftersale(id:string,body:m4.AftersaleActionRequest,key:string){
+      if(!uuid(id)||!key||!m4.contract<m4.AftersaleActionRequest>('M4AftersaleActionRequest')(body))throw new ApiError('INVALID_REQUEST','仅支持有效的合成 Mock 请求、整数分和当前版本。');
+      return post(`/aftersales/${id}`,m4.contract<m4.AftersaleDetail>('M4AftersaleDetail'),body,{'Idempotency-Key':key},'PATCH');
+    },
+    async simulateAftersale(id:string,body:m4.AftersaleEventRequest,key:string){
+      if(!uuid(id)||!key||!m4.contract<m4.AftersaleEventRequest>('M4AftersaleEventRequest')(body))throw new ApiError('INVALID_REQUEST','仅支持有效的合成 Mock 请求、整数分和当前版本。');
+      return post(`/mock/orders/${id}/aftersale-events`,m4.contract<m4.EventAccepted>('M4EventAccepted'),body,{'Idempotency-Key':key},'POST');
+    },
+    async simulateSupplierAftersale(id:string,body:m4.SupplierAftersaleEventRequest,key:string){
+      if(!uuid(id)||!key||!m4.contract<m4.SupplierAftersaleEventRequest>('M4SupplierAftersaleEventRequest')(body))throw new ApiError('INVALID_REQUEST','仅支持有效的合成 Mock 请求、整数分和当前版本。');
+      return post(`/mock/aftersales/${id}/supplier-events`,m4.contract<m4.EventAccepted>('M4EventAccepted'),body,{'Idempotency-Key':key},'POST');
+    },
+    async retryShipmentSync(id:string,key:string){if(!uuid(id)||!key)throw new ApiError('INVALID_REQUEST','请选择有效记录。');return post(`/shipments/${id}/sync-retry`,m4.contract<m4.ShipmentDetail>('M4ShipmentDetail'),undefined,{'Idempotency-Key':key});},
+    async reconcileAftersale(id:string,key:string){if(!uuid(id)||!key)throw new ApiError('INVALID_REQUEST','请选择有效记录。');return post(`/aftersales/${id}/reconcile`,m4.contract<m4.AftersaleDetail>('M4AftersaleDetail'),undefined,{'Idempotency-Key':key});},
+    async readNotification(id:string,key:string){if(!uuid(id)||!key)throw new ApiError('INVALID_REQUEST','请选择有效记录。');return post(`/notifications/${id}/read`,m4.contract<m4.Notification>('M4Notification'),undefined,{'Idempotency-Key':key});},
+    async refreshReports(key:string){if(!key)throw new ApiError('INVALID_REQUEST','缺少幂等键。');return post('/reports/refresh',m4.contract<m4.RefreshAccepted>('M4RefreshAccepted'),undefined,{'Idempotency-Key':key});},
     getMe: () => request("/me", isMe),
     getSystemStatus: () => request("/system/status", isStatus),
     async login(persona: Persona) {

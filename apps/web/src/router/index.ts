@@ -37,6 +37,12 @@ export function createAppRouter(history: RouterHistory = createWebHistory()) {
           { path: "payments/mandates", name: "payment-mandates", component: () => import("../pages/PaymentMandatesPage.vue"), meta: {permission: "payments.read", title: "Mock 签约"} },
           { path: "payments/reconciliations", name: "payment-reconciliations", component: () => import("../pages/PaymentReconciliationsPage.vue"), meta: {permission: "payments.read", title: "Mock 只读对账"} },
           { path: "payments/mock/:attemptId", name: "mock-payment", component: () => import("../pages/MockPaymentPage.vue"), meta: {permission: "payments.manual", title: "本地 Mock 回执模拟器"} },
+          { path: "shipments", name: "shipments", component: () => import("../pages/M4QueuePage.vue"), props: {kind:"shipment"}, meta: {permission:"logistics.read",title:"Mock 物流中心"} },
+          { path: "shipments/:id", name: "shipment-detail", component: () => import("../pages/ShipmentDetailPage.vue"), meta: {permission:"logistics.read",title:"Mock 物流详情"} },
+          { path: "aftersales", name: "aftersales", component: () => import("../pages/M4QueuePage.vue"), props: {kind:"aftersale"}, meta: {permission:"aftersales.read",title:"Mock 售后中心"} },
+          { path: "aftersales/:id", name: "aftersale-detail", component: () => import("../pages/AftersaleDetailPage.vue"), meta: {permission:"aftersales.read",title:"Mock 售后详情"} },
+          { path: "reports", name: "reports", component: () => import("../pages/ReportsPage.vue"), meta: {permission:"reports.read",title:"Mock 经营报表"} },
+          { path: "notifications", name: "notifications", component: () => import("../pages/M4QueuePage.vue"), props: {kind:"notification"}, meta: {permission:"notifications.read",title:"站内通知"} },
           {
             path: "403",
             name: "forbidden",
