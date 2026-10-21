@@ -3388,6 +3388,7 @@ components:
           - CREATE_UNKNOWN
           - AWAITING_PAYMENT
           - REVIEW_REQUIRED
+          - PAID
         estimatedTotalFen:
           type: integer
           format: int64
@@ -3521,6 +3522,7 @@ components:
           - CREATE_UNKNOWN
           - AWAITING_PAYMENT
           - REVIEW_REQUIRED
+          - PAID
         totalFen:
           type: integer
           format: int64
