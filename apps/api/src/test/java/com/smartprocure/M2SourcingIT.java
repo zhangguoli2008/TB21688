@@ -76,6 +76,20 @@ class M2SourcingIT {
         assertThat(evaluation.get("mappingId").asText()).isEqualTo(first.get("id").asText());
         assertThat(evaluation.at("/candidates/0/estimatedProfitFen").asLong()).isEqualTo(3100);
     }
+    @Test void mismatchedSalesSkuCannotBeConfirmedOrCreateIntent()throws Exception {
+        var s=login("OWNER_A");String store=store(s);UUID item=item(store,"MOCK-SKU-WHITE");
+        var mapping=mapping(s,store,"a3000000-0000-4000-8000-000000000001","MOCK-SKU-WHITE");
+        assertThat(mapping.get("status").asText()).isEqualTo("REVIEW");
+        mvc.perform(write(s,"PATCH","/api/v1/sku-mappings/"+mapping.get("id").asText(),Map.of("version",mapping.get("version").asLong(),"status","CONFIRMED","reviewAcknowledged",true)))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("SPECIFICATION_MISMATCH"));
+        var after=response(mvc.perform(get("/api/v1/sku-mappings").session(s.session()).queryParam("storeId",store).queryParam("salesSkuId","MOCK-SKU-WHITE")).andExpect(status().isOk()).andReturn()).at("/items/0");
+        assertThat(after.get("id").asText()).isEqualTo(mapping.get("id").asText());
+        assertThat(after.get("status").asText()).isEqualTo("REVIEW");
+        assertThat(after.get("version").asLong()).isEqualTo(mapping.get("version").asLong());
+        assertThat(after.get("confirmedBy").isNull()).isTrue();
+        assertThat(evaluate(s,item).get("allowed").asBoolean()).isFalse();
+        assertThat(jdbc.queryForObject("select count(*) from purchase_intents where tenant_id='11111111-1111-4111-8111-111111111111' and sales_order_item_id=?",Integer.class,item)).isZero();
+    }
     @Test void crossTenantOfferAndUnknownTenantInputAreRejected()throws Exception {
         var s=login("OWNER_A");String store=store(s);
         mvc.perform(write(s,"POST","/api/v1/sku-mappings",Map.of("storeId",store,"salesSkuId","MOCK-SKU-BLUE","supplierOfferId","b3000000-0000-4000-8000-000000000001"))).andExpect(status().isNotFound());
