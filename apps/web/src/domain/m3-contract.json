@@ -1,0 +1,1036 @@
+{
+  "M3PolicyUpdate": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "mode",
+      "maxSingleFen",
+      "maxDailyFen",
+      "maxStoreSingleFen",
+      "maxStoreDailyFen",
+      "minEstimatedProfitFen",
+      "isPaused",
+      "newSupplierFirstOrderManual",
+      "version"
+    ],
+    "properties": {
+      "mode": {
+        "type": "string",
+        "enum": [
+          "MANUAL",
+          "AUTO",
+          "RULE_BASED"
+        ]
+      },
+      "maxSingleFen": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0,
+        "maximum": 1000000000000
+      },
+      "maxDailyFen": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0,
+        "maximum": 1000000000000
+      },
+      "maxStoreSingleFen": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0,
+        "maximum": 1000000000000
+      },
+      "maxStoreDailyFen": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0,
+        "maximum": 1000000000000
+      },
+      "minEstimatedProfitFen": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0,
+        "maximum": 1000000000000
+      },
+      "isPaused": {
+        "type": "boolean"
+      },
+      "newSupplierFirstOrderManual": {
+        "type": "boolean"
+      },
+      "version": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0,
+        "maximum": 9007199254740991
+      }
+    }
+  },
+  "M3Policy": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "mode",
+      "maxSingleFen",
+      "maxDailyFen",
+      "maxStoreSingleFen",
+      "maxStoreDailyFen",
+      "minEstimatedProfitFen",
+      "isPaused",
+      "newSupplierFirstOrderManual",
+      "version",
+      "globalPaused",
+      "usedDailyFen",
+      "runtimeMode"
+    ],
+    "properties": {
+      "mode": {
+        "type": "string",
+        "enum": [
+          "MANUAL",
+          "AUTO",
+          "RULE_BASED"
+        ]
+      },
+      "maxSingleFen": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0,
+        "maximum": 1000000000000
+      },
+      "maxDailyFen": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0,
+        "maximum": 1000000000000
+      },
+      "maxStoreSingleFen": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0,
+        "maximum": 1000000000000
+      },
+      "maxStoreDailyFen": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0,
+        "maximum": 1000000000000
+      },
+      "minEstimatedProfitFen": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0,
+        "maximum": 1000000000000
+      },
+      "isPaused": {
+        "type": "boolean"
+      },
+      "newSupplierFirstOrderManual": {
+        "type": "boolean"
+      },
+      "version": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0,
+        "maximum": 9007199254740991
+      },
+      "globalPaused": {
+        "type": "boolean"
+      },
+      "usedDailyFen": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0,
+        "maximum": 1000000000000
+      },
+      "runtimeMode": {
+        "type": "string",
+        "enum": [
+          "MOCK"
+        ]
+      }
+    }
+  },
+  "M3MandateUpdate": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "status",
+      "maxSingleFen",
+      "version"
+    ],
+    "properties": {
+      "status": {
+        "type": "string",
+        "enum": [
+          "ACTIVE",
+          "EXPIRED",
+          "REVOKED"
+        ]
+      },
+      "maxSingleFen": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0,
+        "maximum": 1000000000000
+      },
+      "version": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0,
+        "maximum": 9007199254740991
+      }
+    }
+  },
+  "M3Mandate": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "id",
+      "supplierAccountId",
+      "supplierAccountName",
+      "status",
+      "maxSingleFen",
+      "expiresAt",
+      "lastVerifiedAt",
+      "version",
+      "runtimeMode"
+    ],
+    "properties": {
+      "id": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "supplierAccountId": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "supplierAccountName": {
+        "type": "string"
+      },
+      "status": {
+        "type": "string",
+        "enum": [
+          "PENDING",
+          "ACTIVE",
+          "EXPIRED",
+          "REVOKED"
+        ]
+      },
+      "maxSingleFen": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0,
+        "maximum": 1000000000000
+      },
+      "expiresAt": {
+        "type": "string",
+        "format": "date-time",
+        "nullable": true
+      },
+      "lastVerifiedAt": {
+        "type": "string",
+        "format": "date-time",
+        "nullable": true
+      },
+      "version": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0,
+        "maximum": 9007199254740991
+      },
+      "runtimeMode": {
+        "type": "string",
+        "enum": [
+          "MOCK"
+        ]
+      }
+    }
+  },
+  "M3Attempt": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "id",
+      "purchaseId",
+      "attemptNo",
+      "mode",
+      "state",
+      "amountFen",
+      "currency",
+      "mandateId",
+      "providerPaymentReference",
+      "failureCode",
+      "startedAt",
+      "resolvedAt",
+      "lastVerifiedAt",
+      "createdAt",
+      "version",
+      "policyVersion"
+    ],
+    "properties": {
+      "id": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "purchaseId": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "attemptNo": {
+        "type": "integer",
+        "minimum": 1
+      },
+      "mode": {
+        "type": "string",
+        "enum": [
+          "MANUAL",
+          "AUTO",
+          "RULE_BASED"
+        ]
+      },
+      "state": {
+        "type": "string",
+        "enum": [
+          "NEW",
+          "PAYING",
+          "UNKNOWN",
+          "PAID",
+          "FAILED",
+          "MANUAL_RECONCILIATION"
+        ]
+      },
+      "amountFen": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0,
+        "maximum": 1000000000000
+      },
+      "currency": {
+        "type": "string",
+        "enum": [
+          "CNY"
+        ]
+      },
+      "mandateId": {
+        "type": "string",
+        "format": "uuid",
+        "nullable": true
+      },
+      "providerPaymentReference": {
+        "type": "string",
+        "nullable": true
+      },
+      "failureCode": {
+        "type": "string",
+        "nullable": true
+      },
+      "startedAt": {
+        "type": "string",
+        "format": "date-time",
+        "nullable": true
+      },
+      "resolvedAt": {
+        "type": "string",
+        "format": "date-time",
+        "nullable": true
+      },
+      "lastVerifiedAt": {
+        "type": "string",
+        "format": "date-time",
+        "nullable": true
+      },
+      "createdAt": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "version": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0,
+        "maximum": 9007199254740991
+      },
+      "policyVersion": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0,
+        "maximum": 9007199254740991
+      }
+    }
+  },
+  "M3PaymentView": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "purchaseId",
+      "storeId",
+      "supplierAccountId",
+      "externalOrderId",
+      "purchaseState",
+      "amountFen",
+      "currency",
+      "salesAllocatedFen",
+      "estimatedProfitFen",
+      "paidFen",
+      "state",
+      "decisionCode",
+      "attempt",
+      "updatedAt",
+      "runtimeMode"
+    ],
+    "properties": {
+      "purchaseId": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "storeId": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "supplierAccountId": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "externalOrderId": {
+        "type": "string",
+        "nullable": true
+      },
+      "purchaseState": {
+        "type": "string"
+      },
+      "amountFen": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0,
+        "maximum": 1000000000000
+      },
+      "currency": {
+        "type": "string",
+        "enum": [
+          "CNY"
+        ]
+      },
+      "salesAllocatedFen": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0,
+        "maximum": 1000000000000
+      },
+      "estimatedProfitFen": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": -1000000000000,
+        "maximum": 1000000000000
+      },
+      "paidFen": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0,
+        "maximum": 1000000000000
+      },
+      "state": {
+        "type": "string",
+        "enum": [
+          "NEW",
+          "WAIT_MERCHANT_PAYMENT",
+          "PAYING",
+          "UNKNOWN",
+          "PAID",
+          "FAILED",
+          "MANUAL_RECONCILIATION",
+          "BLOCKED"
+        ]
+      },
+      "decisionCode": {
+        "type": "string",
+        "nullable": true
+      },
+      "attempt": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "purchaseId",
+          "attemptNo",
+          "mode",
+          "state",
+          "amountFen",
+          "currency",
+          "mandateId",
+          "providerPaymentReference",
+          "failureCode",
+          "startedAt",
+          "resolvedAt",
+          "lastVerifiedAt",
+          "createdAt",
+          "version",
+          "policyVersion"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "purchaseId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "attemptNo": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "MANUAL",
+              "AUTO",
+              "RULE_BASED"
+            ]
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "NEW",
+              "PAYING",
+              "UNKNOWN",
+              "PAID",
+              "FAILED",
+              "MANUAL_RECONCILIATION"
+            ]
+          },
+          "amountFen": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "maximum": 1000000000000
+          },
+          "currency": {
+            "type": "string",
+            "enum": [
+              "CNY"
+            ]
+          },
+          "mandateId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "providerPaymentReference": {
+            "type": "string",
+            "nullable": true
+          },
+          "failureCode": {
+            "type": "string",
+            "nullable": true
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "resolvedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "lastVerifiedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "policyVersion": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "nullable": true
+      },
+      "updatedAt": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "runtimeMode": {
+        "type": "string",
+        "enum": [
+          "MOCK"
+        ]
+      }
+    }
+  },
+  "M3CheckoutEntry": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "purchaseId",
+      "attemptId",
+      "url",
+      "mode",
+      "expiresAt"
+    ],
+    "properties": {
+      "purchaseId": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "attemptId": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "url": {
+        "type": "string",
+        "pattern": "^/payments/mock/[0-9a-f-]{36}$"
+      },
+      "mode": {
+        "type": "string",
+        "enum": [
+          "MOCK"
+        ]
+      },
+      "expiresAt": {
+        "type": "string",
+        "format": "date-time"
+      }
+    }
+  },
+  "M3MockCheckout": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "attempt",
+      "purchaseId",
+      "totalFen",
+      "currency",
+      "authorityState",
+      "canComplete",
+      "expiresAt",
+      "mode"
+    ],
+    "properties": {
+      "attempt": {
+        "$ref": "#/components/schemas/M3Attempt"
+      },
+      "purchaseId": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "totalFen": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0,
+        "maximum": 1000000000000
+      },
+      "currency": {
+        "type": "string",
+        "enum": [
+          "CNY"
+        ]
+      },
+      "authorityState": {
+        "type": "string",
+        "enum": [
+          "UNPAID",
+          "PAID",
+          "FAILED"
+        ]
+      },
+      "canComplete": {
+        "type": "boolean"
+      },
+      "expiresAt": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "mode": {
+        "type": "string",
+        "enum": [
+          "MOCK"
+        ]
+      }
+    }
+  },
+  "M3ReceiptRequest": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "outcome"
+    ],
+    "properties": {
+      "outcome": {
+        "type": "string",
+        "enum": [
+          "PAID",
+          "UNPAID",
+          "FAILED"
+        ]
+      }
+    }
+  },
+  "M3ConfigUpdate": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "behavior",
+      "version"
+    ],
+    "properties": {
+      "behavior": {
+        "type": "string",
+        "enum": [
+          "NORMAL",
+          "DECLINED",
+          "PAY_TIMEOUT_BEFORE",
+          "PAY_TIMEOUT_AFTER",
+          "QUERY_TIMEOUT",
+          "AUTHORITY_MISMATCH"
+        ]
+      },
+      "version": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0,
+        "maximum": 9007199254740991
+      }
+    }
+  },
+  "M3Config": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "purchaseId",
+      "behavior",
+      "version",
+      "runtimeMode"
+    ],
+    "properties": {
+      "purchaseId": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "behavior": {
+        "type": "string",
+        "enum": [
+          "NORMAL",
+          "DECLINED",
+          "PAY_TIMEOUT_BEFORE",
+          "PAY_TIMEOUT_AFTER",
+          "QUERY_TIMEOUT",
+          "AUTHORITY_MISMATCH"
+        ]
+      },
+      "version": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0,
+        "maximum": 9007199254740991
+      },
+      "runtimeMode": {
+        "type": "string",
+        "enum": [
+          "MOCK"
+        ]
+      }
+    }
+  },
+  "M3Reconciliation": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "id",
+      "purchaseId",
+      "attemptId",
+      "outcome",
+      "localState",
+      "createdAt",
+      "runtimeMode"
+    ],
+    "properties": {
+      "id": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "purchaseId": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "attemptId": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "outcome": {
+        "type": "string",
+        "enum": [
+          "PAID",
+          "FAILED",
+          "UNPAID",
+          "UNKNOWN",
+          "MISMATCH"
+        ]
+      },
+      "localState": {
+        "type": "string"
+      },
+      "createdAt": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "runtimeMode": {
+        "type": "string",
+        "enum": [
+          "MOCK"
+        ]
+      }
+    }
+  },
+  "M3MandatePage": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "items",
+      "total",
+      "limit",
+      "offset"
+    ],
+    "properties": {
+      "items": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/M3Mandate"
+        }
+      },
+      "total": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "limit": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 100
+      },
+      "offset": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 10000
+      }
+    }
+  },
+  "M3PaymentPage": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "items",
+      "total",
+      "limit",
+      "offset"
+    ],
+    "properties": {
+      "items": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/M3PaymentView"
+        }
+      },
+      "total": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "limit": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 100
+      },
+      "offset": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 10000
+      }
+    }
+  },
+  "M3ReconciliationPage": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "items",
+      "total",
+      "limit",
+      "offset"
+    ],
+    "properties": {
+      "items": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/M3Reconciliation"
+        }
+      },
+      "total": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "limit": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 100
+      },
+      "offset": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 10000
+      }
+    }
+  },
+  "M3PolicyEnvelope": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "data",
+      "requestId"
+    ],
+    "properties": {
+      "data": {
+        "$ref": "#/components/schemas/M3Policy"
+      },
+      "requestId": {
+        "type": "string"
+      }
+    }
+  },
+  "M3MandateEnvelope": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "data",
+      "requestId"
+    ],
+    "properties": {
+      "data": {
+        "$ref": "#/components/schemas/M3Mandate"
+      },
+      "requestId": {
+        "type": "string"
+      }
+    }
+  },
+  "M3MandatePageEnvelope": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "data",
+      "requestId"
+    ],
+    "properties": {
+      "data": {
+        "$ref": "#/components/schemas/M3MandatePage"
+      },
+      "requestId": {
+        "type": "string"
+      }
+    }
+  },
+  "M3PaymentViewEnvelope": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "data",
+      "requestId"
+    ],
+    "properties": {
+      "data": {
+        "$ref": "#/components/schemas/M3PaymentView"
+      },
+      "requestId": {
+        "type": "string"
+      }
+    }
+  },
+  "M3PaymentPageEnvelope": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "data",
+      "requestId"
+    ],
+    "properties": {
+      "data": {
+        "$ref": "#/components/schemas/M3PaymentPage"
+      },
+      "requestId": {
+        "type": "string"
+      }
+    }
+  },
+  "M3CheckoutEntryEnvelope": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "data",
+      "requestId"
+    ],
+    "properties": {
+      "data": {
+        "$ref": "#/components/schemas/M3CheckoutEntry"
+      },
+      "requestId": {
+        "type": "string"
+      }
+    }
+  },
+  "M3MockCheckoutEnvelope": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "data",
+      "requestId"
+    ],
+    "properties": {
+      "data": {
+        "$ref": "#/components/schemas/M3MockCheckout"
+      },
+      "requestId": {
+        "type": "string"
+      }
+    }
+  },
+  "M3ConfigEnvelope": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "data",
+      "requestId"
+    ],
+    "properties": {
+      "data": {
+        "$ref": "#/components/schemas/M3Config"
+      },
+      "requestId": {
+        "type": "string"
+      }
+    }
+  },
+  "M3ReconciliationPageEnvelope": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "data",
+      "requestId"
+    ],
+    "properties": {
+      "data": {
+        "$ref": "#/components/schemas/M3ReconciliationPage"
+      },
+      "requestId": {
+        "type": "string"
+      }
+    }
+  }
+}

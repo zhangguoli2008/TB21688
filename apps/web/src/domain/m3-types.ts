@@ -1,0 +1,25 @@
+// Generated from contracts/openapi.yaml; run python3 apps/web/scripts/generate-m3-contract.py.
+export type PolicyUpdate = { mode: "MANUAL" | "AUTO" | "RULE_BASED"; maxSingleFen: number; maxDailyFen: number; maxStoreSingleFen: number; maxStoreDailyFen: number; minEstimatedProfitFen: number; isPaused: boolean; newSupplierFirstOrderManual: boolean; version: number; };
+export type Policy = { mode: "MANUAL" | "AUTO" | "RULE_BASED"; maxSingleFen: number; maxDailyFen: number; maxStoreSingleFen: number; maxStoreDailyFen: number; minEstimatedProfitFen: number; isPaused: boolean; newSupplierFirstOrderManual: boolean; version: number; globalPaused: boolean; usedDailyFen: number; runtimeMode: "MOCK"; };
+export type MandateUpdate = { status: "ACTIVE" | "EXPIRED" | "REVOKED"; maxSingleFen: number; version: number; };
+export type Mandate = { id: string; supplierAccountId: string; supplierAccountName: string; status: "PENDING" | "ACTIVE" | "EXPIRED" | "REVOKED"; maxSingleFen: number; expiresAt: string | null; lastVerifiedAt: string | null; version: number; runtimeMode: "MOCK"; };
+export type Attempt = { id: string; purchaseId: string; attemptNo: number; mode: "MANUAL" | "AUTO" | "RULE_BASED"; state: "NEW" | "PAYING" | "UNKNOWN" | "PAID" | "FAILED" | "MANUAL_RECONCILIATION"; amountFen: number; currency: "CNY"; mandateId: string | null; providerPaymentReference: string | null; failureCode: string | null; startedAt: string | null; resolvedAt: string | null; lastVerifiedAt: string | null; createdAt: string; version: number; policyVersion: number; };
+export type PaymentView = { purchaseId: string; storeId: string; supplierAccountId: string; externalOrderId: string | null; purchaseState: string; amountFen: number; currency: "CNY"; salesAllocatedFen: number; estimatedProfitFen: number; paidFen: number; state: "NEW" | "WAIT_MERCHANT_PAYMENT" | "PAYING" | "UNKNOWN" | "PAID" | "FAILED" | "MANUAL_RECONCILIATION" | "BLOCKED"; decisionCode: string | null; attempt: { id: string; purchaseId: string; attemptNo: number; mode: "MANUAL" | "AUTO" | "RULE_BASED"; state: "NEW" | "PAYING" | "UNKNOWN" | "PAID" | "FAILED" | "MANUAL_RECONCILIATION"; amountFen: number; currency: "CNY"; mandateId: string | null; providerPaymentReference: string | null; failureCode: string | null; startedAt: string | null; resolvedAt: string | null; lastVerifiedAt: string | null; createdAt: string; version: number; policyVersion: number; } | null; updatedAt: string; runtimeMode: "MOCK"; };
+export type CheckoutEntry = { purchaseId: string; attemptId: string; url: string; mode: "MOCK"; expiresAt: string; };
+export type MockCheckout = { attempt: Attempt; purchaseId: string; totalFen: number; currency: "CNY"; authorityState: "UNPAID" | "PAID" | "FAILED"; canComplete: boolean; expiresAt: string; mode: "MOCK"; };
+export type ReceiptRequest = { outcome: "PAID" | "UNPAID" | "FAILED"; };
+export type ConfigUpdate = { behavior: "NORMAL" | "DECLINED" | "PAY_TIMEOUT_BEFORE" | "PAY_TIMEOUT_AFTER" | "QUERY_TIMEOUT" | "AUTHORITY_MISMATCH"; version: number; };
+export type Config = { purchaseId: string; behavior: "NORMAL" | "DECLINED" | "PAY_TIMEOUT_BEFORE" | "PAY_TIMEOUT_AFTER" | "QUERY_TIMEOUT" | "AUTHORITY_MISMATCH"; version: number; runtimeMode: "MOCK"; };
+export type Reconciliation = { id: string; purchaseId: string; attemptId: string; outcome: "PAID" | "FAILED" | "UNPAID" | "UNKNOWN" | "MISMATCH"; localState: string; createdAt: string; runtimeMode: "MOCK"; };
+export type MandatePage = { items: (Mandate)[]; total: number; limit: number; offset: number; };
+export type PaymentPage = { items: (PaymentView)[]; total: number; limit: number; offset: number; };
+export type ReconciliationPage = { items: (Reconciliation)[]; total: number; limit: number; offset: number; };
+export type PolicyEnvelope = { data: Policy; requestId: string; };
+export type MandateEnvelope = { data: Mandate; requestId: string; };
+export type MandatePageEnvelope = { data: MandatePage; requestId: string; };
+export type PaymentViewEnvelope = { data: PaymentView; requestId: string; };
+export type PaymentPageEnvelope = { data: PaymentPage; requestId: string; };
+export type CheckoutEntryEnvelope = { data: CheckoutEntry; requestId: string; };
+export type MockCheckoutEnvelope = { data: MockCheckout; requestId: string; };
+export type ConfigEnvelope = { data: Config; requestId: string; };
+export type ReconciliationPageEnvelope = { data: ReconciliationPage; requestId: string; };
