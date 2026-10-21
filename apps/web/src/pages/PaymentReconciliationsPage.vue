@@ -1,0 +1,17 @@
+<script setup lang="ts">
+import { computed, reactive, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
+import { api } from '../api/client';
+import { useRemote } from '../composables/useRemote';
+import { parsePaymentFilters, paymentQuery } from '../domain/m3';
+import { shanghaiTime } from '../domain/m1';
+import ErrorPanel from '../components/ErrorPanel.vue';
+import PagePagination from '../components/PagePagination.vue';
+import PaymentNavigation from '../components/PaymentNavigation.vue';
+const route=useRoute();const router=useRouter();const filters=computed(()=>parsePaymentFilters(route.query));const form=reactive({storeId:''});const page=useRemote(()=>api.listReconciliations(filters.value));const stores=useRemote(()=>api.listStores(100,0));
+const outcomes:Record<string,string>={PAID:'Mock 权威已付',FAILED:'Mock 权威明确失败',UNPAID:'Mock 权威未付',UNKNOWN:'权威查单结果未知',MISMATCH:'权威数据不一致'};
+watch(()=>route.fullPath,()=>{form.storeId=filters.value.storeId??'';void page.load();},{immediate:true});void stores.load();
+function apply(){void router.push({path:'/payments/reconciliations',query:paymentQuery({...filters.value,storeId:form.storeId,offset:0},false)});}
+function paginate(offset:number,limit:number){void router.push({path:'/payments/reconciliations',query:paymentQuery({...filters.value,offset,limit},false)});}
+</script>
+<template><div><div class="page-heading"><div><p class="eyebrow">支付中心 / 只读对账</p><h1>付款对账记录</h1><p class="muted">脱敏差异摘要 · 不包含支付凭据或原始回调</p></div><el-button :loading="page.loading.value" @click="page.load">刷新记录</el-button></div><PaymentNavigation /><section class="panel filter-panel"><form class="filter-form" @submit.prevent="apply"><label>店铺<select v-model="form.storeId" name="storeId"><option value="">全部可见店铺</option><option v-for="store in stores.data.value?.items" :key="store.id" :value="store.id">{{ store.displayName }}</option></select></label><div class="filter-actions"><el-button native-type="submit" type="primary">查询</el-button></div></form><ErrorPanel v-if="stores.error.value" :error="stores.error.value" title="店铺筛选读取失败"><el-button @click="stores.load">重试店铺</el-button></ErrorPanel></section><section class="panel table-panel" :aria-busy="page.loading.value"><div v-if="page.loading.value" class="data-state" role="status"><el-skeleton :rows="4" animated /><p>正在读取只读对账摘要…</p></div><ErrorPanel v-else-if="page.error.value" :error="page.error.value" title="对账记录读取失败"><el-button @click="page.load">重试</el-button></ErrorPanel><div v-else-if="page.data.value&&!page.data.value.items.length" class="data-state"><h2>暂无可见对账记录</h2><p>后台权威查单后记录安全摘要；空列表不代表付款成功。</p></div><div v-else-if="page.data.value" class="table-scroll"><table class="data-table"><thead><tr><th>采购单 / 尝试</th><th>权威查询结果</th><th>本地状态</th><th>记录时间（上海）</th></tr></thead><tbody><tr v-for="record in page.data.value.items" :key="record.id"><td><RouterLink class="text-link mono" :to="`/purchases/${record.purchaseId}`">{{ record.purchaseId }}</RouterLink><small class="mono">{{ record.attemptId }}</small></td><td>{{ outcomes[record.outcome] }}<small>{{ record.outcome }} · Mock</small></td><td>{{ record.localState }}</td><td class="time-cell">{{ shanghaiTime(record.createdAt) }}</td></tr></tbody></table></div><PagePagination v-if="page.data.value" :total="page.data.value.total" :limit="filters.limit" :offset="filters.offset" :loading="page.loading.value" @change="paginate" /></section></div></template>

@@ -2,10 +2,10 @@ import schemas from './m2-contract.json';
 import { uuid } from './m1';
 export type * from './m2-types';
 export const mappingStates = ['REVIEW', 'CONFIRMED', 'PAUSED'] as const;
-export const intentStates = ['APPROVED', 'CREATING', 'CREATE_UNKNOWN', 'AWAITING_PAYMENT', 'REVIEW_REQUIRED'] as const;
-export const purchaseStates = ['CREATING', 'CREATE_UNKNOWN', 'AWAITING_PAYMENT', 'REVIEW_REQUIRED'] as const;
+export const intentStates = ['APPROVED', 'CREATING', 'CREATE_UNKNOWN', 'AWAITING_PAYMENT', 'REVIEW_REQUIRED', 'PAID'] as const;
+export const purchaseStates = ['CREATING', 'CREATE_UNKNOWN', 'AWAITING_PAYMENT', 'REVIEW_REQUIRED', 'PAID'] as const;
 export const offerFaults = ['NORMAL', 'OUT_OF_STOCK', 'PRICE_RISE', 'QUOTE_TIMEOUT', 'CREATE_TIMEOUT_BEFORE', 'CREATE_TIMEOUT_AFTER', 'QUERY_TIMEOUT'] as const;
-export const stateNames: Record<string,string> = { REVIEW:'待人工核验',CONFIRMED:'已确认',PAUSED:'已暂停',APPROVED:'已接受 · 待异步创单',CREATING:'Mock 创单处理中',CREATE_UNKNOWN:'创单结果未知 · 冻结重下',AWAITING_PAYMENT:'Mock 待付款',REVIEW_REQUIRED:'需人工处理' };
+export const stateNames: Record<string,string> = { REVIEW:'待人工核验',CONFIRMED:'已确认',PAUSED:'已暂停',APPROVED:'已接受 · 待异步创单',CREATING:'Mock 创单处理中',CREATE_UNKNOWN:'创单结果未知 · 冻结重下',AWAITING_PAYMENT:'Mock 待付款',REVIEW_REQUIRED:'需人工处理',PAID:'Mock 权威已付' };
 export const faultNames: Record<string,string> = {NORMAL:'正常',OUT_OF_STOCK:'缺货',PRICE_RISE:'涨价',QUOTE_TIMEOUT:'报价超时',CREATE_TIMEOUT_BEFORE:'创单前超时',CREATE_TIMEOUT_AFTER:'创单后超时',QUERY_TIMEOUT:'查询超时'};
 type Schema = { $ref?:string; nullable?:boolean; type?:string; enum?:unknown[]; required?:string[]; properties?:Record<string,Schema>; additionalProperties?:boolean; items?:Schema; minimum?:number; maximum?:number; minLength?:number; maxLength?:number; pattern?:string; format?:string };
 function matches(value:unknown,schema:Schema):boolean {

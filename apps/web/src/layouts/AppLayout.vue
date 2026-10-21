@@ -25,7 +25,6 @@ const route = useRoute();
 const router = useRouter();
 const logoutError = ref<ApiError | null>(null);
 const futureNavigation = [
-  { label: "支付中心", icon: Wallet, stage: "M3" },
   { label: "物流与售后", icon: Van, stage: "M4" },
   { label: "经营报表", icon: DataAnalysis, stage: "M4" },
 ];
@@ -47,7 +46,7 @@ async function logout() {
       <div class="app-brand">
         <span class="brand-symbol"><el-icon><Connection /></el-icon></span><span>智采云<small>SMARTPROCURE</small></span>
       </div>
-      <div class="workspace-label">商家工作台 <span>M2</span></div>
+      <div class="workspace-label">商家工作台 <span>M3</span></div>
       <nav aria-label="主导航">
         <RouterLink
           v-if="session.can('reports.read')"
@@ -63,6 +62,7 @@ async function logout() {
         <RouterLink v-if="session.can('orders.read')" class="navigation-item" :class="{active:route.path.startsWith('/orders')}" to="/orders" :aria-current="route.path.startsWith('/orders')?'page':undefined"><el-icon><Document /></el-icon><span>订单工作台</span></RouterLink>
         <RouterLink v-if="session.can('sourcing.read')" class="navigation-item" :class="{active:route.path.startsWith('/catalog')}" to="/catalog/mappings" :aria-current="route.path.startsWith('/catalog')?'page':undefined"><el-icon><Goods /></el-icon><span>商品与货源</span></RouterLink>
         <RouterLink v-if="session.can('procurement.read')" class="navigation-item" :class="{active:route.path.startsWith('/purchases')||route.path.startsWith('/purchase-intents')}" to="/purchases" :aria-current="route.path.startsWith('/purchases')||route.path.startsWith('/purchase-intents')?'page':undefined"><el-icon><ShoppingCart /></el-icon><span>采购管理</span></RouterLink>
+        <RouterLink v-if="session.can('payments.read')" class="navigation-item" :class="{active:route.path.startsWith('/payments')}" to="/payments/queue" :aria-current="route.path.startsWith('/payments')?'page':undefined"><el-icon><Wallet /></el-icon><span>支付中心</span></RouterLink>
         <button
           v-for="item in futureNavigation"
           :key="item.label"
@@ -119,7 +119,7 @@ async function logout() {
         <RouterView :key="`${session.user?.currentTenantId}:${session.user?.userId}`" />
       </main>
       <footer class="workspace-footer">
-        智采云 <span>M2 SKU 映射与采购 · Mock / 待授权</span><span>时间显示：Asia/Shanghai</span>
+        智采云 <span>M3 双模式支付模拟 · Mock / 待授权</span><span>时间显示：Asia/Shanghai</span>
       </footer>
     </div>
   </div>

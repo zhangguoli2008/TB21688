@@ -25,9 +25,10 @@ describe('M2 contract boundaries', () => {
   it.each([{...offer,unitPriceFen:1.1},{...offer,stock:-1},{...offer,token:'secret'},{...offer,mode:'REAL'}])('rejects malformed or unsafe offers',async(value)=>{
     const client=createApiClient(async()=>json({items:[value],total:1,limit:20,offset:0}));await expect(client.listOffers()).rejects.toMatchObject({code:'INVALID_RESPONSE'});
   });
-  it('accepts unknown creation as its own state and rejects fabricated paid state',async()=>{
+  it('accepts separate creation-unknown and verified paid purchase states but rejects non-domain states',async()=>{
     const client=createApiClient(async()=>json(purchase));expect((await client.getPurchase(purchase.id)).state).toBe('CREATE_UNKNOWN');
-    const invalid=createApiClient(async()=>json({...purchase,state:'PAID'}));await expect(invalid.getPurchase(purchase.id)).rejects.toMatchObject({code:'INVALID_RESPONSE'});
+    const paid=createApiClient(async()=>json({...purchase,state:'PAID'}));expect((await paid.getPurchase(purchase.id)).state).toBe('PAID');
+    const invalid=createApiClient(async()=>json({...purchase,state:'REAL_PAID'}));await expect(invalid.getPurchase(purchase.id)).rejects.toMatchObject({code:'INVALID_RESPONSE'});
   });
   it('bounds pagination and strips unsupported filters',async()=>{
     let url='';const client=createApiClient(async(path)=>{url=path;return json({items:[intent],total:1,limit:100,offset:0});});await client.listIntents({limit:999,offset:-1,storeId:store.id,state:'APPROVED',tenantId:'other'} as never);

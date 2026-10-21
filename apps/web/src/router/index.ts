@@ -32,6 +32,11 @@ export function createAppRouter(history: RouterHistory = createWebHistory()) {
           { path: "purchases", name: "purchases", component: () => import("../pages/PurchasesPage.vue"), meta: {permission: "procurement.read", title: "采购管理"} },
           { path: "purchases/:id", name: "purchase-detail", component: () => import("../pages/PurchaseDetailPage.vue"), meta: {permission: "procurement.read", title: "采购订单详情"} },
           { path: "purchase-intents/:id", name: "intent-detail", component: () => import("../pages/PurchaseDetailPage.vue"), meta: {permission: "procurement.read", title: "采购意图详情"} },
+          { path: "payments/queue", name: "payment-queue", component: () => import("../pages/PaymentQueuePage.vue"), meta: {permission: "payments.read", title: "Mock 付款队列"} },
+          { path: "payments/policies", name: "payment-policy", component: () => import("../pages/PaymentPolicyPage.vue"), meta: {permission: "paymentPolicy.manage", title: "Mock 支付策略"} },
+          { path: "payments/mandates", name: "payment-mandates", component: () => import("../pages/PaymentMandatesPage.vue"), meta: {permission: "payments.read", title: "Mock 签约"} },
+          { path: "payments/reconciliations", name: "payment-reconciliations", component: () => import("../pages/PaymentReconciliationsPage.vue"), meta: {permission: "payments.read", title: "Mock 只读对账"} },
+          { path: "payments/mock/:attemptId", name: "mock-payment", component: () => import("../pages/MockPaymentPage.vue"), meta: {permission: "payments.manual", title: "本地 Mock 回执模拟器"} },
           {
             path: "403",
             name: "forbidden",

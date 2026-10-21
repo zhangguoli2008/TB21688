@@ -912,3 +912,11 @@ input:disabled,select:disabled { background:#f5f7fa; color:#9ca9bc; }
 .freeze-note h2 { font-size:16px; }
 .freeze-note p { font-size:12px; line-height:1.9; margin-top:10px; }
 @media(max-width:1150px){.policy-form{grid-template-columns:repeat(2,minmax(0,1fr));}.sku-compare{gap:12px;}}
+.payment-table { min-width:1000px; }
+.payment-table td:first-child { max-width:220px; }
+.payment-table .row-actions { flex-wrap:wrap; white-space:normal; gap:8px; }
+.payment-table .payment-actions { min-width:200px; }
+.payment-freeze { max-width:310px; color:#916721; font-size:11px; line-height:1.8; margin:0 0 12px; }
+.payment-actions .error-panel { margin-top:12px; }
+.payment-attempt,.payment-budget,.payment-config { margin-top:24px; padding-top:22px; border-top:1px solid #e6edf5; }
+.payment-attempt h3,.payment-budget h3,.payment-config h3 { font-size:14px; color:#415d83; }

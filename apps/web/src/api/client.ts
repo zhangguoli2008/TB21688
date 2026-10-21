@@ -1,3 +1,4 @@
+import { contract as m3Contract, paymentQuery, type PaymentFilters, type Policy as PaymentPolicy, type PolicyUpdate as PaymentPolicyUpdate, type MandatePage, type Mandate, type MandateUpdate, type PaymentPage, type PaymentView, type CheckoutEntry, type MockCheckout, type ReceiptRequest, type Config as PaymentConfig, type ConfigUpdate as PaymentConfigUpdate, type ReconciliationPage } from '../domain/m3';
 import { contract, m2Query, type M2Filters, type Offer, type OfferPage, type OfferConfig, type Quote, type QuoteRequest, type Mapping, type MappingPage, type MappingCreate, type MappingUpdate, type Policy, type PolicyUpdate, type Evaluation, type Intent, type IntentPage, type IntentCreate, type Purchase, type PurchasePage } from '../domain/m2';
 import { isStore, isOrder, isOrderDetail, isPage, isStoreCreate, isStoreUpdate, isScenario, isScenarioResult, orderQuery, uuid, type StoreCreate, type StoreUpdate, type OrderFilters, type ScenarioRequest } from "../domain/m1";
 export type Persona = "OWNER_A" | "SUPPORT_A" | "OWNER_B";
@@ -252,6 +253,43 @@ export function createApiClient(
     getIntent: (id:string)=>request(`/purchase-intents/${encodeURIComponent(id)}`,contract<Intent>('M2Intent')),
     listPurchases: (filters:M2Filters={limit:20,offset:0})=>request(`/purchases?${new URLSearchParams(m2Query(filters,['storeId','state']))}`,contract<PurchasePage>('M2PurchasePage')),
     getPurchase: (id:string)=>request(`/purchases/${encodeURIComponent(id)}`,contract<Purchase>('M2Purchase')),
+    getPaymentPolicy:()=>request('/payment-policy',m3Contract<PaymentPolicy>('M3Policy')),
+    async updatePaymentPolicy(body:PaymentPolicyUpdate,key:string) {
+      if(!m3Contract<PaymentPolicyUpdate>('M3PolicyUpdate')(body)||!key)throw new ApiError('INVALID_REQUEST','付款策略需非负整数分和当前版本。');
+      return post('/payment-policy',m3Contract<PaymentPolicy>('M3Policy'),body,{'Idempotency-Key':key},'PUT');
+    },
+    listMandates:(limit=20,offset=0)=>request(`/payment-mandates?${new URLSearchParams(paymentQuery({limit,offset},false))}`,m3Contract<MandatePage>('M3MandatePage')),
+    async updateMandate(id:string,body:MandateUpdate) {
+      if(!uuid(id)||!m3Contract<MandateUpdate>('M3MandateUpdate')(body))throw new ApiError('INVALID_REQUEST','Mock 签约状态更新不符合合同。');
+      return post(`/payment-mandates/${id}/mock-state`,m3Contract<Mandate>('M3Mandate'),body,{},'PATCH');
+    },
+    listPayments:(filters:PaymentFilters={limit:20,offset:0})=>request(`/payment-queue?${new URLSearchParams(paymentQuery(filters))}`,m3Contract<PaymentPage>('M3PaymentPage')),
+    getPaymentStatus:(id:string)=>request(`/purchases/${encodeURIComponent(id)}/payment-status`,m3Contract<PaymentView>('M3PaymentView')),
+    async requestPayment(id:string,key:string) {
+      if(!uuid(id)||!key)throw new ApiError('INVALID_REQUEST','请选择有效采购单。');
+      return post(`/purchases/${id}/payments`,m3Contract<PaymentView>('M3PaymentView'),undefined,{'Idempotency-Key':key});
+    },
+    async getCheckoutEntry(id:string,key:string) {
+      if(!uuid(id)||!key)throw new ApiError('INVALID_REQUEST','请选择有效采购单。');
+      const entry=await post(`/purchases/${id}/checkout-entry`,m3Contract<CheckoutEntry>('M3CheckoutEntry'),undefined,{'Idempotency-Key':key});
+      if(entry.purchaseId!==id||entry.url!==`/payments/mock/${entry.attemptId}`)throw new ApiError('INVALID_RESPONSE','Mock 付款入口关联不符。');
+      return entry;
+    },
+    getMockCheckout:(id:string)=>request(`/payment-attempts/${encodeURIComponent(id)}/mock-checkout`,m3Contract<MockCheckout>('M3MockCheckout')),
+    async simulatePaymentReceipt(id:string,body:ReceiptRequest,key:string) {
+      if(!uuid(id)||!m3Contract<ReceiptRequest>('M3ReceiptRequest')(body)||!key)throw new ApiError('INVALID_REQUEST','仅允许合成 Mock 回执。');
+      return post(`/mock/payment-attempts/${id}/receipt`,m3Contract<PaymentView>('M3PaymentView'),body,{'Idempotency-Key':key});
+    },
+    async reconcilePayment(id:string,key:string) {
+      if(!uuid(id)||!key)throw new ApiError('INVALID_REQUEST','请选择有效采购单。');
+      return post(`/purchases/${id}/payment-reconcile`,m3Contract<PaymentView>('M3PaymentView'),undefined,{'Idempotency-Key':key});
+    },
+    getPaymentConfig:(id:string)=>request(`/mock/purchases/${encodeURIComponent(id)}/payment-config`,m3Contract<PaymentConfig>('M3Config')),
+    async updatePaymentConfig(id:string,body:PaymentConfigUpdate) {
+      if(!uuid(id)||!m3Contract<PaymentConfigUpdate>('M3ConfigUpdate')(body))throw new ApiError('INVALID_REQUEST','Mock 付款故障配置需版本。');
+      return post(`/mock/purchases/${id}/payment-config`,m3Contract<PaymentConfig>('M3Config'),body,{},'PATCH');
+    },
+    listReconciliations:(filters:PaymentFilters={limit:20,offset:0})=>request(`/payment-reconciliations?${new URLSearchParams(paymentQuery(filters,false))}`,m3Contract<ReconciliationPage>('M3ReconciliationPage')),
     getMe: () => request("/me", isMe),
     getSystemStatus: () => request("/system/status", isStatus),
     async login(persona: Persona) {
