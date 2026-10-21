@@ -11,7 +11,7 @@ const emit=defineEmits<{updated:[value:PaymentView]}>();
 const session=useSessionStore();const route=useRoute();const router=useRouter();
 const pending=ref(false);const error=ref<ApiError|null>(null);const notice=ref('');const confirmation=ref<'checkout'|'request'|null>(null);
 let revision=0;const keys=new Map<string,string>();
-const startable=computed(()=>props.payment.purchaseState==='AWAITING_PAYMENT'&&['WAIT_MERCHANT_PAYMENT','FAILED','BLOCKED'].includes(props.payment.state));
+const startable=computed(()=>props.payment.purchaseState==='AWAITING_PAYMENT'&&['WAIT_MERCHANT_PAYMENT','BLOCKED'].includes(props.payment.state));
 const context=()=>`${route.fullPath}:${session.user?.currentTenantId}:${session.user?.userId}:${props.payment.purchaseId}`;
 watch(context,()=>{revision++;pending.value=false;confirmation.value=null;error.value=null;notice.value='';keys.clear();},{flush:'sync'});
 onScopeDispose(()=>revision++);
@@ -41,6 +41,7 @@ async function execute(action:'checkout'|'request'|'reconcile'){
 <template>
   <div class="payment-actions">
     <p v-if="frozen(payment.state)" class="payment-freeze" role="status">正在核实，请勿再次付款。{{ payment.state==='MANUAL_RECONCILIATION'?'自动查询已耗尽，需人工核对；仍禁止重付。':'结果未知，所有重新付款入口已冻结。' }}</p>
+    <p v-if="payment.state==='FAILED'" class="payment-freeze" role="status">该付款尝试已明确失败，本阶段不提供第二次付款尝试。可只读查单并核对对账记录；存在差异时需人工核对。</p>
     <div class="row-actions">
       <el-button v-if="startable&&session.can('payments.manual')" data-testid="open-checkout" size="small" :disabled="pending" @click="confirmation='checkout'">打开本地 Mock 付款页</el-button>
       <el-button v-if="startable&&session.can('payments.manage')" data-testid="request-payment" size="small" :disabled="pending" @click="confirmation='request'">按策略编排 Mock 付款</el-button>

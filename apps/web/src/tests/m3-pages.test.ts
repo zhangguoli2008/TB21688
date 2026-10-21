@@ -130,3 +130,19 @@ describe('M3 guard and shared-label regressions',()=>{
   const {wrapper}=await setup(`/orders/${order.id}`);expect(wrapper.text()).toContain('已付款（Mock）');expect(wrapper.text()).toContain('新订单');
  });
 });
+
+describe('M3 reviewed terminal and authority-wait behavior',()=>{
+ it('keeps failed attempts terminal while allowing only read-only reconciliation',async()=>{
+  vi.stubGlobal('fetch',vi.fn(async(path:string)=>path.includes('/payment-queue?')?list([{...payment,state:'FAILED',attempt:{...attempt,state:'FAILED'}}]):response(path)));
+  const {wrapper}=await setup('/payments/queue');expect(wrapper.find('[data-testid="open-checkout"]').exists()).toBe(false);expect(wrapper.find('[data-testid="request-payment"]').exists()).toBe(false);expect(wrapper.get('[data-testid="reconcile-payment"]').text()).toBe('只读查单');expect(wrapper.text()).toContain('该付款尝试已明确失败');expect(wrapper.text()).toContain('不提供第二次付款尝试');
+ });
+ it('shows a frozen authority-wait state and safe navigation when receipt verification is pending',async()=>{
+  let submitted=false;vi.stubGlobal('fetch',vi.fn(async(path:string)=>{
+   if(path.endsWith('/receipt')){submitted=true;return json({...payment,state:'PAYING',attempt:{...attempt,state:'PAYING'}});}
+   if(path.endsWith('/mock-checkout')&&submitted)return apiError(409,'PAYMENT_STATUS_UNKNOWN');
+   return response(path);
+  }));
+  const {wrapper}=await setup(`/payments/mock/${attempt.id}`);await wrapper.get('.inline-form').trigger('submit');await wrapper.get('[data-testid="confirm-receipt"]').trigger('click');await flushPromises();
+  const frozen=wrapper.get('[data-testid="mock-checkout-frozen"]');expect(frozen.text()).toContain('正在核实，请勿再次付款');expect(frozen.text()).toContain('等待后台独立权威核验');expect(frozen.find(`a[href="/purchases/${purchase.id}"]`).exists()).toBe(true);expect(frozen.find('a[href="/payments/queue"]').exists()).toBe(true);expect(wrapper.find('[data-testid="simulate-receipt"]').exists()).toBe(false);expect(wrapper.text()).not.toContain('Mock 权威已付');
+ });
+});
