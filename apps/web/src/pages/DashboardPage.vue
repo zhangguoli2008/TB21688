@@ -81,8 +81,8 @@ onMounted(loadStatus);
       <section class="summary-card">
         <span class="summary-icon"><el-icon><DataLine /></el-icon></span>
         <div>
-          <span class="card-label">当前交付阶段</span><strong>M1 <small>店铺与订单</small></strong>
-          <p>Mock 授权、销售订单与异步事件</p>
+          <span class="card-label">当前交付阶段</span><strong>M2 <small>映射与采购</small></strong>
+          <p>SKU 人工核验、采购规则与异步 Mock 创单</p>
         </div>
       </section>
     </div>
@@ -142,17 +142,17 @@ onMounted(loadStatus);
       </div>
       <div>
         <el-tag size="small" type="info" effect="plain">
-          M1 销售订单演示
+          M2 Mock 采购演示
         </el-tag>
         <h2 id="business-title">从 Mock 店铺开始订单演示</h2>
         <p>
-          连接 Mock 店铺，生成合成事件，在订单工作台查看销售金额与状态。<br />采购、利润、支付和履约数据待后续里程碑开放。
+          连接 Mock 店铺，生成合成事件，在订单工作台查看销售金额与状态。<br />从销售子项核验 SKU、预览规则并查看 Mock 采购进度；付款与履约待后续里程碑。
         </p>
         <div class="inline-actions dashboard-entry"><RouterLink to="/stores"><el-button>店铺中心</el-button></RouterLink><RouterLink to="/orders"><el-button type="primary">进入订单工作台</el-button></RouterLink></div>
       </div>
     </section>
     <section class="scope-note">
-      <strong>M1 演示范围</strong><span>本地会话</span><span>当前租户</span><span>Mock 店铺授权</span><span>合成销售订单</span><span>真实服务状态</span><span class="muted">无真实交易</span>
+      <strong>M2 演示范围</strong><span>本地会话</span><span>当前租户</span><span>Mock 店铺授权</span><span>合成销售订单</span><span>真实服务状态</span><span class="muted">无真实交易</span>
     </section>
   </div>
 </template>

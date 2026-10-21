@@ -1,3 +1,4 @@
+import { contract, m2Query, type M2Filters, type Offer, type OfferPage, type OfferConfig, type Quote, type QuoteRequest, type Mapping, type MappingPage, type MappingCreate, type MappingUpdate, type Policy, type PolicyUpdate, type Evaluation, type Intent, type IntentPage, type IntentCreate, type Purchase, type PurchasePage } from '../domain/m2';
 import { isStore, isOrder, isOrderDetail, isPage, isStoreCreate, isStoreUpdate, isScenario, isScenarioResult, orderQuery, uuid, type StoreCreate, type StoreUpdate, type OrderFilters, type ScenarioRequest } from "../domain/m1";
 export type Persona = "OWNER_A" | "SUPPORT_A" | "OWNER_B";
 export interface Me {
@@ -127,7 +128,7 @@ export function createApiClient(
         );
       }
       if (!response.ok) {
-        if (response.status === 403 && ["POST", "PATCH"].includes(options.method ?? "")) csrf = null;
+        if (response.status === 403 && ["POST", "PATCH", "PUT"].includes(options.method ?? "")) csrf = null;
         throw new ApiError(
           record(body) && typeof body.code === "string"
             ? body.code
@@ -216,6 +217,41 @@ export function createApiClient(
       if (!uuid(id) || !isScenario(body) || !key) throw new ApiError("INVALID_REQUEST", "请输入有效的合成订单号和模拟场景。");
       return post(`/mock/stores/${id}/scenarios`, isScenarioResult, body, { "Idempotency-Key": key });
     },
+    listOffers: (filters: M2Filters = {limit:20,offset:0}) => request(`/supplier-offers?${new URLSearchParams(m2Query(filters,[]))}`, contract<OfferPage>('M2OfferPage')),
+    async updateOffer(id:string, body:OfferConfig) {
+      if(!uuid(id)||!contract<OfferConfig>('M2OfferConfig')(body)) throw new ApiError('INVALID_REQUEST','Mock 货源配置不符合合同，请使用整数分。');
+      return post(`/supplier-offers/${id}/mock-config`,contract<Offer>('M2Offer'),body,{},'PATCH');
+    },
+    async quoteOffer(id:string,body:QuoteRequest) {
+      if(!uuid(id)||!contract<QuoteRequest>('M2QuoteRequest')(body))throw new ApiError('INVALID_REQUEST','请选择店铺并填写有效的整数数量。');
+      return post(`/supplier-offers/${id}/quotes`,contract<Quote>('M2Quote'),body);
+    },
+    listMappings: (filters:M2Filters={limit:20,offset:0})=>request(`/sku-mappings?${new URLSearchParams(m2Query(filters,['storeId','salesSkuId','status']))}`,contract<MappingPage>('M2MappingPage')),
+    async createMapping(body:MappingCreate,key:string) {
+      if(!contract<MappingCreate>('M2MappingCreate')(body)||!key)throw new ApiError('INVALID_REQUEST','映射信息不符合合同。');
+      return post('/sku-mappings',contract<Mapping>('M2Mapping'),body,{'Idempotency-Key':key});
+    },
+    async updateMapping(id:string,body:MappingUpdate) {
+      if(!uuid(id)||!contract<MappingUpdate>('M2MappingUpdate')(body))throw new ApiError('INVALID_REQUEST','映射审核信息不符合合同。');
+      return post(`/sku-mappings/${id}`,contract<Mapping>('M2Mapping'),body,{},'PATCH');
+    },
+    getPolicy: (storeId?:string)=>request(storeId?`/procurement-policies/${encodeURIComponent(storeId)}`:'/procurement-policy',contract<Policy>('M2Policy')),
+    async updatePolicy(body:PolicyUpdate,storeId?:string) {
+      if(!contract<PolicyUpdate>('M2PolicyUpdate')(body)||(storeId&&!uuid(storeId)))throw new ApiError('INVALID_REQUEST','采购规则不符合合同，请填写非负整数分。');
+      return post(storeId?`/procurement-policies/${storeId}`:'/procurement-policy',contract<Policy>('M2Policy'),body,{},'PUT');
+    },
+    async evaluateProcurement(salesOrderItemId:string) {
+      if(!uuid(salesOrderItemId))throw new ApiError('INVALID_REQUEST','请选择有效的销售子项。');
+      return post('/purchase-intents/evaluate',contract<Evaluation>('M2Evaluation'),{salesOrderItemId});
+    },
+    async createPurchaseIntent(body:IntentCreate,key:string) {
+      if(!contract<IntentCreate>('M2IntentCreate')(body)||!key)throw new ApiError('INVALID_REQUEST','采购意图必须引用有效的子项与报价。');
+      return post('/purchase-intents',contract<Intent>('M2Intent'),body,{'Idempotency-Key':key});
+    },
+    listIntents: (filters:M2Filters={limit:20,offset:0})=>request(`/purchase-intents?${new URLSearchParams(m2Query(filters,['storeId','state']))}`,contract<IntentPage>('M2IntentPage')),
+    getIntent: (id:string)=>request(`/purchase-intents/${encodeURIComponent(id)}`,contract<Intent>('M2Intent')),
+    listPurchases: (filters:M2Filters={limit:20,offset:0})=>request(`/purchases?${new URLSearchParams(m2Query(filters,['storeId','state']))}`,contract<PurchasePage>('M2PurchasePage')),
+    getPurchase: (id:string)=>request(`/purchases/${encodeURIComponent(id)}`,contract<Purchase>('M2Purchase')),
     getMe: () => request("/me", isMe),
     getSystemStatus: () => request("/system/status", isStatus),
     async login(persona: Persona) {

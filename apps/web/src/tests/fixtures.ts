@@ -5,7 +5,7 @@ export const owner = {
   currentTenantId: "10000000-0000-0000-0000-000000000001",
   tenantName: "演示商家 A",
   roles: ["OWNER"],
-  permissions: ["reports.read", "system.read", "demo.read", "stores.read", "stores.manage", "orders.read", "orders.simulate"],
+  permissions: ["reports.read", "system.read", "demo.read", "stores.read", "stores.manage", "orders.read", "orders.simulate", "sourcing.read", "sourcing.manage", "procurement.read", "procurement.manage"],
   mode: "MOCK" as const,
 };
 
@@ -14,7 +14,7 @@ export const support = {
   userId: "00000000-0000-0000-0000-000000000002",
   email: "support.a@example.test",
   roles: ["SUPPORT"],
-  permissions: ["demo.read", "stores.read", "orders.read"],
+  permissions: ["demo.read", "stores.read", "orders.read", "procurement.read"],
 };
 
 export function json(data: unknown, status = 200) {
