@@ -49,7 +49,7 @@ async function updateMapping(status:Mapping['status']){
   try{
     const result=await api.updateMapping(mappingId,body);if(current!==revision)return;
     review.value=result;await mappings.load();if(current!==revision)return;
-    notice.value='Mock 映射版本已更新，已创建采购意图保留原快照。';acknowledged.value=false;
+    notice.value='Mock 映射版本已更新；已有采购意图保留创建时的快照。';acknowledged.value=false;
   }catch(cause){if(current===revision)mutationError.value=asApiError(cause);}
   finally{if(current===revision)pending.value=false;}
 }

@@ -36,13 +36,13 @@ async function login() {
         <p class="eyebrow">多租户电商采购工作台</p>
         <h1>从清晰的工作台，<br />开始每一天。</h1>
         <p class="intro-copy">
-          在隔离的演示环境中，连接 Mock 店铺，查看合成销售订单与同步事件。
+          在隔离的演示环境中，核验 SKU 货源，查看销售订单与 Mock 采购进度。
         </p>
         <div class="intro-note">
-          <el-icon><Lock /></el-icon><span>真实平台、采购与支付通道均已关闭</span>
+          <el-icon><Lock /></el-icon><span>真实平台通道已关闭；不执行真实采购或付款</span>
         </div>
         <div class="milestone-line">
-          <span class="milestone-dot"></span>M1 店铺与销售订单
+          <span class="milestone-dot"></span>M2 SKU 映射与 Mock 采购
           <span class="muted">/ 本地演示</span>
         </div>
       </div>
@@ -78,7 +78,7 @@ async function login() {
           </el-button>
         </form>
         <p class="login-footnote">
-          M1 提供 Mock 店铺授权与销售订单演示；真实平台、采购和付款仍待开放。
+          M2 提供 SKU 核验、采购规则与异步 Mock 创单；创单成功仅为待付款，支付功能待 M3。
         </p>
       </section>
     </section>
