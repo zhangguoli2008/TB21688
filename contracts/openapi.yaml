@@ -6163,6 +6163,7 @@ components:
           type: string
           format: date-time
         asOf:
+          description: 汇总范围内最早的订单投影核验时间，表示投影新鲜度下界；各订单可能含更晚更新，并非统一历史截点。空范围为查询时刻。
           type: string
           format: date-time
         projectionPendingCount:
@@ -6249,6 +6250,7 @@ components:
           format: int64
           minimum: 0
         asOf:
+          description: 本订单投影最近核验时间；金额可能滞后于尚未消费的事件。
           type: string
           format: date-time
         mode:
