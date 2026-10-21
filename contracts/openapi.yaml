@@ -1,14 +1,14 @@
 openapi: 3.0.3
 info:
   title: SmartProcure SaaS Internal API
-  version: 0.4.0
+  version: 0.5.0
   description: >-
     本合同仅描述智采云自己的API，不代表淘宝、抖店、1688或拼多多官方API。
     所有真实平台功能默认关闭；开发只可通过Mock接口验证。
     M0/M1身份、店铺与销售，以及M2映射、Mock报价和异步采购路径；所有真实通道关闭。
     M2创单成功仅为AWAITING_PAYMENT，CREATE_UNKNOWN只查单，不能声称真实采购/付款。
     M3增加付款策略、Mock签约、独立付款尝试、预算预占和只读对账；MANUAL/AUTO/RULE_BASED均只操作合成数据。
-    付款UNKNOWN及人工对账冻结重付；PAID仅表示Mock权威核验结果。其余物流、售后、报表等路径仍为后续设计，尚未实现。
+    付款UNKNOWN及人工对账冻结重付；PAID仅表示Mock权威核验结果。M4增加包裹版本、权威回填、售后协调、方向独立退款账、经营投影与站内通知。所有M4操作仍为Mock。
 servers:
   - url: http://localhost:8080/api/v1
     description: 本地Mock环境
@@ -25,6 +25,7 @@ tags:
   - name: Aftersales
   - name: Reports
   - name: Audit
+  - name: Notifications
 paths:
   /auth/csrf:
     get:
@@ -1662,43 +1663,824 @@ paths:
               schema: {$ref: '#/components/schemas/JobEnvelope'}
   /shipments:
     get:
-      tags: [Shipping]
+      tags:
+      - Shipping
       operationId: listShipments
+      summary: M4 Mock / logistics.read
+      description: 仅合成数据；服务端会话租户及店铺范围鉴权。所有写入持久幂等；事件由Worker查询Mock权威状态。
       parameters:
-        - {$ref: '#/components/parameters/Limit'}
-        - {$ref: '#/components/parameters/Cursor'}
+      - name: limit
+        in: query
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+          maximum: 100
+          default: 20
+      - name: offset
+        in: query
+        schema:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 10000
+          default: 0
+      - name: storeId
+        in: query
+        schema:
+          type: string
+          format: uuid
+      - name: purchaseOrderId
+        in: query
+        schema:
+          type: string
+          format: uuid
+      - name: salesOrderId
+        in: query
+        schema:
+          type: string
+          format: uuid
+      - name: state
+        in: query
+        schema:
+          type: string
+          enum:
+          - NOT_CREATED
+          - LABEL_CREATED
+          - SHIPPED
+          - DELIVERED
+          - LOST
+          - EXCEPTION
+      - name: syncState
+        in: query
+        schema:
+          type: string
+          enum:
+          - NOT_SENT
+          - SENDING
+          - ACKED
+          - RETRY_WAIT
+          - BLOCKED
       responses:
         '200':
-          description: Success
+          description: Mock result
           content:
             application/json:
-              schema: {$ref: '#/components/schemas/ShipmentsEnvelope'}
+              schema:
+                $ref: '#/components/schemas/M4ShipmentPageEnvelope'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '409':
+          $ref: '#/components/responses/ErrorResponse'
+        '422':
+          $ref: '#/components/responses/ErrorResponse'
+        '503':
+          $ref: '#/components/responses/ErrorResponse'
+  /shipments/{shipmentId}:
+    get:
+      tags:
+      - Shipping
+      operationId: getShipment
+      summary: M4 Mock / logistics.read
+      description: 仅合成数据；服务端会话租户及店铺范围鉴权。所有写入持久幂等；事件由Worker查询Mock权威状态。
+      parameters:
+      - name: shipmentId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Mock result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/M4ShipmentDetailEnvelope'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '409':
+          $ref: '#/components/responses/ErrorResponse'
+        '422':
+          $ref: '#/components/responses/ErrorResponse'
+        '503':
+          $ref: '#/components/responses/ErrorResponse'
+  /mock/purchases/{purchaseId}/shipment-events:
+    post:
+      tags:
+      - Shipping
+      operationId: mockShipmentEvent
+      summary: M4 Mock / logistics.manage (OWNER)
+      description: 仅合成数据；服务端会话租户及店铺范围鉴权。所有写入持久幂等；事件由Worker查询Mock权威状态。
+      parameters:
+      - name: purchaseId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - $ref: '#/components/parameters/IdempotencyKey'
+      - $ref: '#/components/parameters/CsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/M4ShipmentEventRequest'
+      responses:
+        '202':
+          description: Mock result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/M4EventAcceptedEnvelope'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '409':
+          $ref: '#/components/responses/ErrorResponse'
+        '422':
+          $ref: '#/components/responses/ErrorResponse'
+        '503':
+          $ref: '#/components/responses/ErrorResponse'
+  /mock/shipments/{shipmentId}/sync-config:
+    patch:
+      tags:
+      - Shipping
+      operationId: configureShipmentSync
+      summary: M4 Mock / logistics.manage (OWNER)
+      description: 仅合成数据；服务端会话租户及店铺范围鉴权。所有写入持久幂等；事件由Worker查询Mock权威状态。
+      parameters:
+      - name: shipmentId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - $ref: '#/components/parameters/IdempotencyKey'
+      - $ref: '#/components/parameters/CsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/M4SyncConfigRequest'
+      responses:
+        '200':
+          description: Mock result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/M4ShipmentDetailEnvelope'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '409':
+          $ref: '#/components/responses/ErrorResponse'
+        '422':
+          $ref: '#/components/responses/ErrorResponse'
+        '503':
+          $ref: '#/components/responses/ErrorResponse'
+  /shipments/{shipmentId}/sync-retry:
+    post:
+      tags:
+      - Shipping
+      operationId: retryShipmentSync
+      summary: M4 Mock / logistics.manage (OWNER)
+      description: 仅合成数据；服务端会话租户及店铺范围鉴权。所有写入持久幂等；事件由Worker查询Mock权威状态。
+      parameters:
+      - name: shipmentId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - $ref: '#/components/parameters/IdempotencyKey'
+      - $ref: '#/components/parameters/CsrfToken'
+      responses:
+        '200':
+          description: Mock result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/M4ShipmentDetailEnvelope'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '409':
+          $ref: '#/components/responses/ErrorResponse'
+        '422':
+          $ref: '#/components/responses/ErrorResponse'
+        '503':
+          $ref: '#/components/responses/ErrorResponse'
   /aftersales:
     get:
-      tags: [Aftersales]
+      tags:
+      - Aftersales
       operationId: listAftersales
+      summary: M4 Mock / aftersales.read
+      description: 仅合成数据；服务端会话租户及店铺范围鉴权。所有写入持久幂等；事件由Worker查询Mock权威状态。
       parameters:
-        - {$ref: '#/components/parameters/Limit'}
-        - {$ref: '#/components/parameters/Cursor'}
+      - name: limit
+        in: query
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+          maximum: 100
+          default: 20
+      - name: offset
+        in: query
+        schema:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 10000
+          default: 0
+      - name: storeId
+        in: query
+        schema:
+          type: string
+          format: uuid
+      - name: salesOrderId
+        in: query
+        schema:
+          type: string
+          format: uuid
+      - name: state
+        in: query
+        schema:
+          type: string
+          enum:
+          - REQUESTED
+          - UNDER_REVIEW
+          - SUPPLIER_COORDINATION
+          - RETURN_IN_TRANSIT
+          - REFUND_PENDING
+          - RESOLVED
+          - REJECTED
+          - MANUAL_REVIEW
+      - name: type
+        in: query
+        schema:
+          type: string
+          enum:
+          - CANCEL
+          - REFUND_ONLY
+          - RETURN_REFUND
+      - name: sourceState
+        in: query
+        schema:
+          type: string
+          enum:
+          - REQUESTED
+          - CANCELLED
+          - REFUNDING
+          - REFUNDED
+          - REJECTED
+          - ARBITRATION
+      - name: upstreamState
+        in: query
+        schema:
+          type: string
+          enum:
+          - NO_PURCHASE
+          - PENDING
+          - CANCEL_REQUESTED
+          - CANCELLED
+          - REFUND_PENDING
+          - REFUNDED
+          - RETURN_REQUIRED
+          - RETURN_RECEIVED
+          - MANUAL_REVIEW
+          - QUERY_PAYMENT
+          - UNKNOWN
+          - REJECTED
       responses:
         '200':
-          description: Success
+          description: Mock result
           content:
             application/json:
-              schema: {$ref: '#/components/schemas/AftersalesEnvelope'}
+              schema:
+                $ref: '#/components/schemas/M4AftersalePageEnvelope'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '409':
+          $ref: '#/components/responses/ErrorResponse'
+        '422':
+          $ref: '#/components/responses/ErrorResponse'
+        '503':
+          $ref: '#/components/responses/ErrorResponse'
+  /aftersales/{caseId}:
+    get:
+      tags:
+      - Aftersales
+      operationId: getAftersale
+      summary: M4 Mock / aftersales.read
+      description: 仅合成数据；服务端会话租户及店铺范围鉴权。所有写入持久幂等；事件由Worker查询Mock权威状态。
+      parameters:
+      - name: caseId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Mock result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/M4AftersaleDetailEnvelope'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '409':
+          $ref: '#/components/responses/ErrorResponse'
+        '422':
+          $ref: '#/components/responses/ErrorResponse'
+        '503':
+          $ref: '#/components/responses/ErrorResponse'
+    patch:
+      tags:
+      - Aftersales
+      operationId: updateAftersale
+      summary: M4 Mock / aftersales.manage
+      description: 仅合成数据；服务端会话租户及店铺范围鉴权。所有写入持久幂等；事件由Worker查询Mock权威状态。
+      parameters:
+      - name: caseId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - $ref: '#/components/parameters/IdempotencyKey'
+      - $ref: '#/components/parameters/CsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/M4AftersaleActionRequest'
+      responses:
+        '200':
+          description: Mock result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/M4AftersaleDetailEnvelope'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '409':
+          $ref: '#/components/responses/ErrorResponse'
+        '422':
+          $ref: '#/components/responses/ErrorResponse'
+        '503':
+          $ref: '#/components/responses/ErrorResponse'
+  /mock/orders/{orderId}/aftersale-events:
+    post:
+      tags:
+      - Aftersales
+      operationId: mockAftersaleEvent
+      summary: M4 Mock / aftersales.simulate (OWNER)
+      description: 仅合成数据；服务端会话租户及店铺范围鉴权。所有写入持久幂等；事件由Worker查询Mock权威状态。
+      parameters:
+      - name: orderId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - $ref: '#/components/parameters/IdempotencyKey'
+      - $ref: '#/components/parameters/CsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/M4AftersaleEventRequest'
+      responses:
+        '202':
+          description: Mock result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/M4EventAcceptedEnvelope'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '409':
+          $ref: '#/components/responses/ErrorResponse'
+        '422':
+          $ref: '#/components/responses/ErrorResponse'
+        '503':
+          $ref: '#/components/responses/ErrorResponse'
+  /aftersales/{caseId}/reconcile:
+    post:
+      tags:
+      - Aftersales
+      operationId: reconcileAftersale
+      summary: M4 Mock / aftersales.manage
+      description: 仅合成数据；服务端会话租户及店铺范围鉴权。所有写入持久幂等；事件由Worker查询Mock权威状态。
+      parameters:
+      - name: caseId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - $ref: '#/components/parameters/IdempotencyKey'
+      - $ref: '#/components/parameters/CsrfToken'
+      responses:
+        '200':
+          description: Mock result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/M4AftersaleDetailEnvelope'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '409':
+          $ref: '#/components/responses/ErrorResponse'
+        '422':
+          $ref: '#/components/responses/ErrorResponse'
+        '503':
+          $ref: '#/components/responses/ErrorResponse'
+  /mock/aftersales/{caseId}/supplier-events:
+    post:
+      tags:
+      - Aftersales
+      operationId: mockSupplierAftersaleEvent
+      summary: M4 Mock / aftersales.simulate (OWNER)
+      description: 仅合成数据；服务端会话租户及店铺范围鉴权。所有写入持久幂等；事件由Worker查询Mock权威状态。
+      parameters:
+      - name: caseId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - $ref: '#/components/parameters/IdempotencyKey'
+      - $ref: '#/components/parameters/CsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/M4SupplierAftersaleEventRequest'
+      responses:
+        '202':
+          description: Mock result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/M4EventAcceptedEnvelope'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '409':
+          $ref: '#/components/responses/ErrorResponse'
+        '422':
+          $ref: '#/components/responses/ErrorResponse'
+        '503':
+          $ref: '#/components/responses/ErrorResponse'
   /reports/overview:
     get:
-      tags: [Reports]
+      tags:
+      - Reports
       operationId: getOverviewReport
+      summary: M4 Mock / reports.read
+      description: 仅合成数据；服务端会话租户及店铺范围鉴权。所有写入持久幂等；事件由Worker查询Mock权威状态。
       parameters:
-        - {name: from, in: query, schema: {type: string, format: date}}
-        - {name: to, in: query, schema: {type: string, format: date}}
+      - name: storeId
+        in: query
+        schema:
+          type: string
+          format: uuid
+      - name: from
+        in: query
+        schema:
+          type: string
+          format: date-time
+      - name: to
+        in: query
+        schema:
+          type: string
+          format: date-time
       responses:
         '200':
-          description: Success
+          description: Mock result
           content:
             application/json:
-              schema: {$ref: '#/components/schemas/ReportEnvelope'}
+              schema:
+                $ref: '#/components/schemas/M4ReportOverviewEnvelope'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '409':
+          $ref: '#/components/responses/ErrorResponse'
+        '422':
+          $ref: '#/components/responses/ErrorResponse'
+        '503':
+          $ref: '#/components/responses/ErrorResponse'
+  /reports/orders:
+    get:
+      tags:
+      - Reports
+      operationId: listReportOrders
+      summary: M4 Mock / reports.read
+      description: 仅合成数据；服务端会话租户及店铺范围鉴权。所有写入持久幂等；事件由Worker查询Mock权威状态。
+      parameters:
+      - name: storeId
+        in: query
+        schema:
+          type: string
+          format: uuid
+      - name: from
+        in: query
+        schema:
+          type: string
+          format: date-time
+      - name: to
+        in: query
+        schema:
+          type: string
+          format: date-time
+      - name: limit
+        in: query
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+          maximum: 100
+          default: 20
+      - name: offset
+        in: query
+        schema:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 10000
+          default: 0
+      responses:
+        '200':
+          description: Mock result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/M4ReportOrderPageEnvelope'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '409':
+          $ref: '#/components/responses/ErrorResponse'
+        '422':
+          $ref: '#/components/responses/ErrorResponse'
+        '503':
+          $ref: '#/components/responses/ErrorResponse'
+  /reports/refresh:
+    post:
+      tags:
+      - Reports
+      operationId: refreshReports
+      summary: M4 Mock / reports.manage (OWNER)
+      description: 仅合成数据；服务端会话租户及店铺范围鉴权。所有写入持久幂等；事件由Worker查询Mock权威状态。
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      - $ref: '#/components/parameters/CsrfToken'
+      responses:
+        '202':
+          description: Mock result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/M4RefreshAcceptedEnvelope'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '409':
+          $ref: '#/components/responses/ErrorResponse'
+        '422':
+          $ref: '#/components/responses/ErrorResponse'
+        '503':
+          $ref: '#/components/responses/ErrorResponse'
+  /notifications:
+    get:
+      tags:
+      - Notifications
+      operationId: listNotifications
+      summary: M4 Mock / notifications.read
+      description: 仅合成数据；服务端会话租户及店铺范围鉴权。所有写入持久幂等；事件由Worker查询Mock权威状态。
+      parameters:
+      - name: storeId
+        in: query
+        schema:
+          type: string
+          format: uuid
+      - name: limit
+        in: query
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+          maximum: 100
+          default: 20
+      - name: offset
+        in: query
+        schema:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 10000
+          default: 0
+      - name: unread
+        in: query
+        schema:
+          type: boolean
+      responses:
+        '200':
+          description: Mock result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/M4NotificationPageEnvelope'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '409':
+          $ref: '#/components/responses/ErrorResponse'
+        '422':
+          $ref: '#/components/responses/ErrorResponse'
+        '503':
+          $ref: '#/components/responses/ErrorResponse'
+  /notifications/{notificationId}/read:
+    post:
+      tags:
+      - Notifications
+      operationId: readNotification
+      summary: M4 Mock / notifications.read
+      description: 仅合成数据；服务端会话租户及店铺范围鉴权。所有写入持久幂等；事件由Worker查询Mock权威状态。
+      parameters:
+      - name: notificationId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - $ref: '#/components/parameters/IdempotencyKey'
+      - $ref: '#/components/parameters/CsrfToken'
+      responses:
+        '200':
+          description: Mock result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/M4NotificationEnvelope'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '409':
+          $ref: '#/components/responses/ErrorResponse'
+        '422':
+          $ref: '#/components/responses/ErrorResponse'
+        '503':
+          $ref: '#/components/responses/ErrorResponse'
+  /orders/{orderId}/activity:
+    get:
+      tags:
+      - Orders
+      operationId: listOrderActivity
+      summary: M4 Mock / orders.read
+      description: 仅合成数据；服务端会话租户及店铺范围鉴权。所有写入持久幂等；事件由Worker查询Mock权威状态。
+      parameters:
+      - name: orderId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: limit
+        in: query
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+          maximum: 100
+          default: 20
+      - name: offset
+        in: query
+        schema:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 10000
+          default: 0
+      responses:
+        '200':
+          description: Mock result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/M4ActivityPageEnvelope'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '409':
+          $ref: '#/components/responses/ErrorResponse'
+        '422':
+          $ref: '#/components/responses/ErrorResponse'
+        '503':
+          $ref: '#/components/responses/ErrorResponse'
   /audit-logs:
     get:
       tags: [Audit]
@@ -4396,3 +5178,1448 @@ components:
           $ref: '#/components/schemas/M3ReconciliationPage'
         requestId:
           type: string
+    M4EventAccepted:
+      type: object
+      additionalProperties: false
+      required:
+      - eventId
+      - jobId
+      - state
+      - mode
+      properties:
+        eventId:
+          type: string
+        jobId:
+          type: string
+          format: uuid
+        state:
+          type: string
+          enum:
+          - QUEUED
+        mode:
+          type: string
+          enum:
+          - MOCK
+    M4ShipmentSync:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - shipmentId
+      - salesOrderId
+      - salesOrderItemId
+      - qty
+      - trackingVersion
+      - state
+      - platformAck
+      - lastErrorCode
+      - retryCount
+      - needsQuery
+      - acknowledgedAt
+      - updatedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        shipmentId:
+          type: string
+          format: uuid
+        salesOrderId:
+          type: string
+          format: uuid
+        salesOrderItemId:
+          type: string
+          format: uuid
+        qty:
+          type: integer
+          format: int64
+          minimum: 1
+        trackingVersion:
+          type: integer
+          format: int64
+          minimum: 1
+        state:
+          type: string
+          enum:
+          - NOT_SENT
+          - SENDING
+          - ACKED
+          - RETRY_WAIT
+          - BLOCKED
+        platformAck:
+          type: string
+          nullable: true
+        lastErrorCode:
+          type: string
+          nullable: true
+        retryCount:
+          type: integer
+          format: int64
+          minimum: 0
+        needsQuery:
+          type: boolean
+        acknowledgedAt:
+          type: string
+          format: date-time
+          nullable: true
+        updatedAt:
+          type: string
+          format: date-time
+    M4ShipmentVersion:
+      type: object
+      additionalProperties: false
+      required:
+      - trackingVersion
+      - carrierCode
+      - trackingNumber
+      - sourceState
+      - sourceVersion
+      - qty
+      - observedAt
+      properties:
+        trackingVersion:
+          type: integer
+          format: int64
+          minimum: 1
+        carrierCode:
+          type: string
+        trackingNumber:
+          type: string
+        sourceState:
+          type: string
+          enum:
+          - NOT_CREATED
+          - LABEL_CREATED
+          - SHIPPED
+          - DELIVERED
+          - LOST
+          - EXCEPTION
+        sourceVersion:
+          type: integer
+          format: int64
+          minimum: 1
+        qty:
+          type: integer
+          format: int64
+          minimum: 1
+        observedAt:
+          type: string
+          format: date-time
+    M4SyncConfig:
+      type: object
+      additionalProperties: false
+      required:
+      - behavior
+      - version
+      - mode
+      properties:
+        behavior:
+          type: string
+          enum:
+          - NORMAL
+          - SUBMIT_5XX
+          - SUBMIT_TIMEOUT_AFTER
+          - QUERY_TIMEOUT
+          - AUTHORITY_MISMATCH
+          - CORRECTION_BLOCKED
+        version:
+          type: integer
+          format: int64
+          minimum: 0
+        mode:
+          type: string
+          enum:
+          - MOCK
+    M4Shipment:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - purchaseOrderId
+      - salesOrderId
+      - salesOrderItemId
+      - storeId
+      - externalShipmentId
+      - carrierCode
+      - trackingNumber
+      - qty
+      - state
+      - sourceState
+      - sourceVersion
+      - trackingVersion
+      - version
+      - shippedAt
+      - updatedAt
+      - currentSync
+      - mode
+      properties:
+        id:
+          type: string
+          format: uuid
+        purchaseOrderId:
+          type: string
+          format: uuid
+        salesOrderId:
+          type: string
+          format: uuid
+        salesOrderItemId:
+          type: string
+          format: uuid
+        storeId:
+          type: string
+          format: uuid
+        externalShipmentId:
+          type: string
+        carrierCode:
+          type: string
+        trackingNumber:
+          type: string
+        qty:
+          type: integer
+          format: int64
+          minimum: 1
+        state:
+          type: string
+          enum:
+          - NOT_CREATED
+          - LABEL_CREATED
+          - SHIPPED
+          - DELIVERED
+          - LOST
+          - EXCEPTION
+        sourceState:
+          type: string
+          enum:
+          - NOT_CREATED
+          - LABEL_CREATED
+          - SHIPPED
+          - DELIVERED
+          - LOST
+          - EXCEPTION
+        sourceVersion:
+          type: integer
+          format: int64
+          minimum: 1
+        trackingVersion:
+          type: integer
+          format: int64
+          minimum: 1
+        version:
+          type: integer
+          format: int64
+          minimum: 0
+        shippedAt:
+          type: string
+          format: date-time
+          nullable: true
+        updatedAt:
+          type: string
+          format: date-time
+        currentSync:
+          $ref: '#/components/schemas/M4ShipmentSync'
+          nullable: true
+        mode:
+          type: string
+          enum:
+          - MOCK
+    M4ShipmentDetail:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - purchaseOrderId
+      - salesOrderId
+      - salesOrderItemId
+      - storeId
+      - externalShipmentId
+      - carrierCode
+      - trackingNumber
+      - qty
+      - state
+      - sourceState
+      - sourceVersion
+      - trackingVersion
+      - version
+      - shippedAt
+      - updatedAt
+      - currentSync
+      - mode
+      - versions
+      - syncs
+      - config
+      properties:
+        id:
+          type: string
+          format: uuid
+        purchaseOrderId:
+          type: string
+          format: uuid
+        salesOrderId:
+          type: string
+          format: uuid
+        salesOrderItemId:
+          type: string
+          format: uuid
+        storeId:
+          type: string
+          format: uuid
+        externalShipmentId:
+          type: string
+        carrierCode:
+          type: string
+        trackingNumber:
+          type: string
+        qty:
+          type: integer
+          format: int64
+          minimum: 1
+        state:
+          type: string
+          enum:
+          - NOT_CREATED
+          - LABEL_CREATED
+          - SHIPPED
+          - DELIVERED
+          - LOST
+          - EXCEPTION
+        sourceState:
+          type: string
+          enum:
+          - NOT_CREATED
+          - LABEL_CREATED
+          - SHIPPED
+          - DELIVERED
+          - LOST
+          - EXCEPTION
+        sourceVersion:
+          type: integer
+          format: int64
+          minimum: 1
+        trackingVersion:
+          type: integer
+          format: int64
+          minimum: 1
+        version:
+          type: integer
+          format: int64
+          minimum: 0
+        shippedAt:
+          type: string
+          format: date-time
+          nullable: true
+        updatedAt:
+          type: string
+          format: date-time
+        currentSync:
+          $ref: '#/components/schemas/M4ShipmentSync'
+          nullable: true
+        mode:
+          type: string
+          enum:
+          - MOCK
+        versions:
+          type: array
+          items:
+            $ref: '#/components/schemas/M4ShipmentVersion'
+        syncs:
+          type: array
+          items:
+            $ref: '#/components/schemas/M4ShipmentSync'
+        config:
+          $ref: '#/components/schemas/M4SyncConfig'
+    M4ShipmentEventRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - eventId
+      - externalShipmentId
+      - sourceVersion
+      - qty
+      - carrierCode
+      - trackingNumber
+      - sourceState
+      - behavior
+      properties:
+        eventId:
+          type: string
+          pattern: ^MOCK-[A-Za-z0-9_-]{1,100}$
+        externalShipmentId:
+          type: string
+          pattern: ^MOCK-PKG-[A-Za-z0-9_-]{1,100}$
+        sourceVersion:
+          type: integer
+          format: int64
+          minimum: 1
+        qty:
+          type: integer
+          format: int64
+          minimum: 1
+          maximum: 10000
+        carrierCode:
+          type: string
+          enum:
+          - MOCK_EXPRESS
+        trackingNumber:
+          type: string
+          pattern: ^MOCK-TRACK-[A-Za-z0-9_-]{1,100}$
+        sourceState:
+          type: string
+          enum:
+          - SHIPPED
+          - DELIVERED
+          - EXCEPTION
+        behavior:
+          type: string
+          enum:
+          - NORMAL
+          - SUBMIT_5XX
+          - SUBMIT_TIMEOUT_AFTER
+          - QUERY_TIMEOUT
+          - AUTHORITY_MISMATCH
+          - CORRECTION_BLOCKED
+    M4SyncConfigRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - behavior
+      - version
+      properties:
+        behavior:
+          type: string
+          enum:
+          - NORMAL
+          - SUBMIT_5XX
+          - SUBMIT_TIMEOUT_AFTER
+          - QUERY_TIMEOUT
+          - AUTHORITY_MISMATCH
+          - CORRECTION_BLOCKED
+        version:
+          type: integer
+          format: int64
+          minimum: 0
+    M4Aftersale:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - salesOrderId
+      - salesOrderItemId
+      - storeId
+      - sourceCaseId
+      - type
+      - sourceState
+      - sourceVersion
+      - qty
+      - requestedRefundFen
+      - currency
+      - state
+      - upstreamState
+      - deadlineAt
+      - reasonCode
+      - version
+      - createdAt
+      - updatedAt
+      - mode
+      properties:
+        id:
+          type: string
+          format: uuid
+        salesOrderId:
+          type: string
+          format: uuid
+        salesOrderItemId:
+          type: string
+          format: uuid
+        storeId:
+          type: string
+          format: uuid
+        sourceCaseId:
+          type: string
+        type:
+          type: string
+          enum:
+          - CANCEL
+          - REFUND_ONLY
+          - RETURN_REFUND
+        sourceState:
+          type: string
+          enum:
+          - REQUESTED
+          - CANCELLED
+          - REFUNDING
+          - REFUNDED
+          - REJECTED
+          - ARBITRATION
+        sourceVersion:
+          type: integer
+          format: int64
+          minimum: 1
+        qty:
+          type: integer
+          format: int64
+          minimum: 1
+        requestedRefundFen:
+          type: integer
+          format: int64
+          minimum: 0
+        currency:
+          type: string
+          enum:
+          - CNY
+        state:
+          type: string
+          enum:
+          - REQUESTED
+          - UNDER_REVIEW
+          - SUPPLIER_COORDINATION
+          - RETURN_IN_TRANSIT
+          - REFUND_PENDING
+          - RESOLVED
+          - REJECTED
+          - MANUAL_REVIEW
+        upstreamState:
+          type: string
+          enum:
+          - NO_PURCHASE
+          - PENDING
+          - CANCEL_REQUESTED
+          - CANCELLED
+          - REFUND_PENDING
+          - REFUNDED
+          - RETURN_REQUIRED
+          - RETURN_RECEIVED
+          - MANUAL_REVIEW
+          - QUERY_PAYMENT
+          - UNKNOWN
+          - REJECTED
+        deadlineAt:
+          type: string
+          format: date-time
+          nullable: true
+        reasonCode:
+          type: string
+          nullable: true
+        version:
+          type: integer
+          format: int64
+          minimum: 0
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        mode:
+          type: string
+          enum:
+          - MOCK
+    M4Coordination:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - purchaseOrderId
+      - state
+      - upstreamSourceState
+      - requestedRefundFen
+      - cancellationReference
+      - refundReference
+      - updatedAt
+      - version
+      properties:
+        id:
+          type: string
+          format: uuid
+        purchaseOrderId:
+          type: string
+          format: uuid
+        state:
+          type: string
+          enum:
+          - NO_PURCHASE
+          - PENDING
+          - CANCEL_REQUESTED
+          - CANCELLED
+          - REFUND_PENDING
+          - REFUNDED
+          - RETURN_REQUIRED
+          - RETURN_RECEIVED
+          - MANUAL_REVIEW
+          - QUERY_PAYMENT
+          - UNKNOWN
+          - REJECTED
+        upstreamSourceState:
+          type: string
+          enum:
+          - NO_PURCHASE
+          - PENDING
+          - CANCEL_REQUESTED
+          - CANCELLED
+          - REFUND_PENDING
+          - REFUNDED
+          - RETURN_REQUIRED
+          - RETURN_RECEIVED
+          - MANUAL_REVIEW
+          - QUERY_PAYMENT
+          - UNKNOWN
+          - REJECTED
+        requestedRefundFen:
+          type: integer
+          format: int64
+          minimum: 0
+        cancellationReference:
+          type: string
+          nullable: true
+        refundReference:
+          type: string
+          nullable: true
+        updatedAt:
+          type: string
+          format: date-time
+        version:
+          type: integer
+          format: int64
+          minimum: 0
+    M4Refund:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - aftersaleId
+      - purchaseOrderId
+      - direction
+      - amountFen
+      - currency
+      - state
+      - externalReference
+      - verifiedAt
+      - version
+      - createdAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        aftersaleId:
+          type: string
+          format: uuid
+        purchaseOrderId:
+          type: string
+          format: uuid
+          nullable: true
+        direction:
+          type: string
+          enum:
+          - SALES
+          - SUPPLIER
+        amountFen:
+          type: integer
+          format: int64
+          minimum: 0
+        currency:
+          type: string
+          enum:
+          - CNY
+        state:
+          type: string
+          enum:
+          - PENDING
+          - VERIFIED
+          - FAILED
+          - UNKNOWN
+        externalReference:
+          type: string
+          nullable: true
+        verifiedAt:
+          type: string
+          format: date-time
+          nullable: true
+        version:
+          type: integer
+          format: int64
+          minimum: 0
+        createdAt:
+          type: string
+          format: date-time
+    M4AftersaleDetail:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - salesOrderId
+      - salesOrderItemId
+      - storeId
+      - sourceCaseId
+      - type
+      - sourceState
+      - sourceVersion
+      - qty
+      - requestedRefundFen
+      - currency
+      - state
+      - upstreamState
+      - deadlineAt
+      - reasonCode
+      - version
+      - createdAt
+      - updatedAt
+      - mode
+      - coordinations
+      - refunds
+      properties:
+        id:
+          type: string
+          format: uuid
+        salesOrderId:
+          type: string
+          format: uuid
+        salesOrderItemId:
+          type: string
+          format: uuid
+        storeId:
+          type: string
+          format: uuid
+        sourceCaseId:
+          type: string
+        type:
+          type: string
+          enum:
+          - CANCEL
+          - REFUND_ONLY
+          - RETURN_REFUND
+        sourceState:
+          type: string
+          enum:
+          - REQUESTED
+          - CANCELLED
+          - REFUNDING
+          - REFUNDED
+          - REJECTED
+          - ARBITRATION
+        sourceVersion:
+          type: integer
+          format: int64
+          minimum: 1
+        qty:
+          type: integer
+          format: int64
+          minimum: 1
+        requestedRefundFen:
+          type: integer
+          format: int64
+          minimum: 0
+        currency:
+          type: string
+          enum:
+          - CNY
+        state:
+          type: string
+          enum:
+          - REQUESTED
+          - UNDER_REVIEW
+          - SUPPLIER_COORDINATION
+          - RETURN_IN_TRANSIT
+          - REFUND_PENDING
+          - RESOLVED
+          - REJECTED
+          - MANUAL_REVIEW
+        upstreamState:
+          type: string
+          enum:
+          - NO_PURCHASE
+          - PENDING
+          - CANCEL_REQUESTED
+          - CANCELLED
+          - REFUND_PENDING
+          - REFUNDED
+          - RETURN_REQUIRED
+          - RETURN_RECEIVED
+          - MANUAL_REVIEW
+          - QUERY_PAYMENT
+          - UNKNOWN
+          - REJECTED
+        deadlineAt:
+          type: string
+          format: date-time
+          nullable: true
+        reasonCode:
+          type: string
+          nullable: true
+        version:
+          type: integer
+          format: int64
+          minimum: 0
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        mode:
+          type: string
+          enum:
+          - MOCK
+        coordinations:
+          type: array
+          items:
+            $ref: '#/components/schemas/M4Coordination'
+        refunds:
+          type: array
+          items:
+            $ref: '#/components/schemas/M4Refund'
+    M4AftersaleEventRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - eventId
+      - sourceCaseId
+      - type
+      - sourceState
+      - sourceVersion
+      - salesOrderItemId
+      - qty
+      - requestedRefundFen
+      properties:
+        eventId:
+          type: string
+          pattern: ^MOCK-[A-Za-z0-9_-]{1,100}$
+        sourceCaseId:
+          type: string
+          pattern: ^MOCK-CASE-[A-Za-z0-9_-]{1,100}$
+        type:
+          type: string
+          enum:
+          - CANCEL
+          - REFUND_ONLY
+          - RETURN_REFUND
+        sourceState:
+          type: string
+          enum:
+          - REQUESTED
+          - CANCELLED
+          - REFUNDING
+          - REFUNDED
+          - REJECTED
+          - ARBITRATION
+        sourceVersion:
+          type: integer
+          format: int64
+          minimum: 1
+        salesOrderItemId:
+          type: string
+          format: uuid
+        qty:
+          type: integer
+          format: int64
+          minimum: 1
+          maximum: 10000
+        requestedRefundFen:
+          type: integer
+          format: int64
+          minimum: 0
+    M4AftersaleActionRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - action
+      - version
+      properties:
+        action:
+          type: string
+          enum:
+          - ACKNOWLEDGE
+          - RETURN_SENT
+          - REQUEST_SUPPLIER_CANCEL
+          - REQUEST_SUPPLIER_REFUND
+        version:
+          type: integer
+          format: int64
+          minimum: 0
+    M4SupplierAftersaleEventRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - eventId
+      - purchaseOrderId
+      - sourceVersion
+      - state
+      - refundAmountFen
+      properties:
+        eventId:
+          type: string
+          pattern: ^MOCK-[A-Za-z0-9_-]{1,100}$
+        purchaseOrderId:
+          type: string
+          format: uuid
+        sourceVersion:
+          type: integer
+          format: int64
+          minimum: 1
+        state:
+          type: string
+          enum:
+          - NO_PURCHASE
+          - PENDING
+          - CANCEL_REQUESTED
+          - CANCELLED
+          - REFUND_PENDING
+          - REFUNDED
+          - RETURN_REQUIRED
+          - RETURN_RECEIVED
+          - MANUAL_REVIEW
+          - QUERY_PAYMENT
+          - UNKNOWN
+          - REJECTED
+        refundAmountFen:
+          type: integer
+          format: int64
+          minimum: 0
+    M4ReportOverview:
+      type: object
+      additionalProperties: false
+      required:
+      - salesPaidFen
+      - purchasePaidFen
+      - estimatedPurchaseFen
+      - estimatedProfitFen
+      - salesRefundedFen
+      - supplierRefundedFen
+      - netCashFlowFen
+      - actualNetProfitFen
+      - unreconciledCount
+      - unreconciledPaymentFen
+      - pendingSupplierRefundFen
+      - orderCount
+      - profitStatus
+      - currency
+      - basis
+      - fromTime
+      - toTime
+      - asOf
+      - projectionPendingCount
+      - mode
+      properties:
+        salesPaidFen:
+          type: integer
+          format: int64
+          minimum: 0
+        purchasePaidFen:
+          type: integer
+          format: int64
+          minimum: 0
+        estimatedPurchaseFen:
+          type: integer
+          format: int64
+          minimum: 0
+        estimatedProfitFen:
+          type: integer
+          format: int64
+        salesRefundedFen:
+          type: integer
+          format: int64
+          minimum: 0
+        supplierRefundedFen:
+          type: integer
+          format: int64
+          minimum: 0
+        netCashFlowFen:
+          type: integer
+          format: int64
+        actualNetProfitFen:
+          type: integer
+          format: int64
+          nullable: true
+        unreconciledCount:
+          type: integer
+          format: int64
+          minimum: 0
+        unreconciledPaymentFen:
+          type: integer
+          format: int64
+          minimum: 0
+        pendingSupplierRefundFen:
+          type: integer
+          format: int64
+          minimum: 0
+        orderCount:
+          type: integer
+          format: int64
+          minimum: 0
+        profitStatus:
+          type: string
+          enum:
+          - INCOMPLETE_COSTS
+        currency:
+          type: string
+          enum:
+          - CNY
+        basis:
+          type: string
+          enum:
+          - ORDER_CREATED_COHORT
+        fromTime:
+          type: string
+          format: date-time
+        toTime:
+          type: string
+          format: date-time
+        asOf:
+          type: string
+          format: date-time
+        projectionPendingCount:
+          type: integer
+          format: int64
+          minimum: 0
+        mode:
+          type: string
+          enum:
+          - MOCK
+    M4ReportOrder:
+      type: object
+      additionalProperties: false
+      required:
+      - salesOrderId
+      - storeId
+      - externalOrderId
+      - createdAt
+      - salesPaidFen
+      - purchasePaidFen
+      - estimatedPurchaseFen
+      - estimatedProfitFen
+      - salesRefundedFen
+      - supplierRefundedFen
+      - netCashFlowFen
+      - actualNetProfitFen
+      - unreconciledCount
+      - unreconciledPaymentFen
+      - pendingSupplierRefundFen
+      - asOf
+      - mode
+      properties:
+        salesOrderId:
+          type: string
+          format: uuid
+        storeId:
+          type: string
+          format: uuid
+        externalOrderId:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        salesPaidFen:
+          type: integer
+          format: int64
+          minimum: 0
+        purchasePaidFen:
+          type: integer
+          format: int64
+          minimum: 0
+        estimatedPurchaseFen:
+          type: integer
+          format: int64
+          minimum: 0
+        estimatedProfitFen:
+          type: integer
+          format: int64
+        salesRefundedFen:
+          type: integer
+          format: int64
+          minimum: 0
+        supplierRefundedFen:
+          type: integer
+          format: int64
+          minimum: 0
+        netCashFlowFen:
+          type: integer
+          format: int64
+        actualNetProfitFen:
+          type: integer
+          format: int64
+          nullable: true
+        unreconciledCount:
+          type: integer
+          format: int64
+          minimum: 0
+        unreconciledPaymentFen:
+          type: integer
+          format: int64
+          minimum: 0
+        pendingSupplierRefundFen:
+          type: integer
+          format: int64
+          minimum: 0
+        asOf:
+          type: string
+          format: date-time
+        mode:
+          type: string
+          enum:
+          - MOCK
+    M4RefreshAccepted:
+      type: object
+      additionalProperties: false
+      required:
+      - state
+      - queuedCount
+      - mode
+      properties:
+        state:
+          type: string
+          enum:
+          - QUEUED
+        queuedCount:
+          type: integer
+          format: int64
+          minimum: 0
+        mode:
+          type: string
+          enum:
+          - MOCK
+    M4Notification:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - storeId
+      - salesOrderId
+      - category
+      - code
+      - createdAt
+      - readAt
+      - mode
+      properties:
+        id:
+          type: string
+          format: uuid
+        storeId:
+          type: string
+          format: uuid
+        salesOrderId:
+          type: string
+          format: uuid
+        category:
+          type: string
+        code:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        readAt:
+          type: string
+          format: date-time
+          nullable: true
+        mode:
+          type: string
+          enum:
+          - MOCK
+    M4Activity:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - salesOrderId
+      - source
+      - action
+      - entityType
+      - entityId
+      - code
+      - actorId
+      - occurredAt
+      - mode
+      properties:
+        id:
+          type: string
+          format: uuid
+        salesOrderId:
+          type: string
+          format: uuid
+        source:
+          type: string
+        action:
+          type: string
+        entityType:
+          type: string
+        entityId:
+          type: string
+          format: uuid
+        code:
+          type: string
+          nullable: true
+        actorId:
+          type: string
+          format: uuid
+          nullable: true
+        occurredAt:
+          type: string
+          format: date-time
+        mode:
+          type: string
+          enum:
+          - MOCK
+    M4ShipmentPage:
+      type: object
+      additionalProperties: false
+      required:
+      - items
+      - total
+      - limit
+      - offset
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/M4Shipment'
+        total:
+          type: integer
+          format: int64
+          minimum: 0
+        limit:
+          type: integer
+          format: int64
+          minimum: 1
+          maximum: 100
+        offset:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 10000
+    M4AftersalePage:
+      type: object
+      additionalProperties: false
+      required:
+      - items
+      - total
+      - limit
+      - offset
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/M4Aftersale'
+        total:
+          type: integer
+          format: int64
+          minimum: 0
+        limit:
+          type: integer
+          format: int64
+          minimum: 1
+          maximum: 100
+        offset:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 10000
+    M4ReportOrderPage:
+      type: object
+      additionalProperties: false
+      required:
+      - items
+      - total
+      - limit
+      - offset
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/M4ReportOrder'
+        total:
+          type: integer
+          format: int64
+          minimum: 0
+        limit:
+          type: integer
+          format: int64
+          minimum: 1
+          maximum: 100
+        offset:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 10000
+    M4NotificationPage:
+      type: object
+      additionalProperties: false
+      required:
+      - items
+      - total
+      - limit
+      - offset
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/M4Notification'
+        total:
+          type: integer
+          format: int64
+          minimum: 0
+        limit:
+          type: integer
+          format: int64
+          minimum: 1
+          maximum: 100
+        offset:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 10000
+    M4ActivityPage:
+      type: object
+      additionalProperties: false
+      required:
+      - items
+      - total
+      - limit
+      - offset
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/M4Activity'
+        total:
+          type: integer
+          format: int64
+          minimum: 0
+        limit:
+          type: integer
+          format: int64
+          minimum: 1
+          maximum: 100
+        offset:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 10000
+    M4EventAcceptedEnvelope:
+      type: object
+      additionalProperties: false
+      required:
+      - data
+      - requestId
+      properties:
+        data:
+          $ref: '#/components/schemas/M4EventAccepted'
+        requestId:
+          type: string
+          format: uuid
+    M4ShipmentPageEnvelope:
+      type: object
+      additionalProperties: false
+      required:
+      - data
+      - requestId
+      properties:
+        data:
+          $ref: '#/components/schemas/M4ShipmentPage'
+        requestId:
+          type: string
+          format: uuid
+    M4ShipmentDetailEnvelope:
+      type: object
+      additionalProperties: false
+      required:
+      - data
+      - requestId
+      properties:
+        data:
+          $ref: '#/components/schemas/M4ShipmentDetail'
+        requestId:
+          type: string
+          format: uuid
+    M4AftersalePageEnvelope:
+      type: object
+      additionalProperties: false
+      required:
+      - data
+      - requestId
+      properties:
+        data:
+          $ref: '#/components/schemas/M4AftersalePage'
+        requestId:
+          type: string
+          format: uuid
+    M4AftersaleDetailEnvelope:
+      type: object
+      additionalProperties: false
+      required:
+      - data
+      - requestId
+      properties:
+        data:
+          $ref: '#/components/schemas/M4AftersaleDetail'
+        requestId:
+          type: string
+          format: uuid
+    M4ReportOverviewEnvelope:
+      type: object
+      additionalProperties: false
+      required:
+      - data
+      - requestId
+      properties:
+        data:
+          $ref: '#/components/schemas/M4ReportOverview'
+        requestId:
+          type: string
+          format: uuid
+    M4ReportOrderPageEnvelope:
+      type: object
+      additionalProperties: false
+      required:
+      - data
+      - requestId
+      properties:
+        data:
+          $ref: '#/components/schemas/M4ReportOrderPage'
+        requestId:
+          type: string
+          format: uuid
+    M4RefreshAcceptedEnvelope:
+      type: object
+      additionalProperties: false
+      required:
+      - data
+      - requestId
+      properties:
+        data:
+          $ref: '#/components/schemas/M4RefreshAccepted'
+        requestId:
+          type: string
+          format: uuid
+    M4NotificationPageEnvelope:
+      type: object
+      additionalProperties: false
+      required:
+      - data
+      - requestId
+      properties:
+        data:
+          $ref: '#/components/schemas/M4NotificationPage'
+        requestId:
+          type: string
+          format: uuid
+    M4NotificationEnvelope:
+      type: object
+      additionalProperties: false
+      required:
+      - data
+      - requestId
+      properties:
+        data:
+          $ref: '#/components/schemas/M4Notification'
+        requestId:
+          type: string
+          format: uuid
+    M4ActivityPageEnvelope:
+      type: object
+      additionalProperties: false
+      required:
+      - data
+      - requestId
+      properties:
+        data:
+          $ref: '#/components/schemas/M4ActivityPage'
+        requestId:
+          type: string
+          format: uuid
