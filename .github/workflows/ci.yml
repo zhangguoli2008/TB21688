@@ -1,11 +1,11 @@
-name: M0 checks
+name: SmartProcure checks
 on:
   push:
   pull_request:
 permissions:
   contents: read
 concurrency:
-  group: m0-${{ github.ref }}
+  group: smartprocure-${{ github.ref }}
   cancel-in-progress: true
 jobs:
   api:
@@ -84,11 +84,17 @@ jobs:
       - run: python3 scripts/smoke-m0.py
         env:
           M0_REQUIRE_HEALTHY: "1"
+      - run: python3 scripts/smoke-m1.py
+        env:
+          M1_BASE_URL: http://localhost:8080/api/v1
       - run: curl --fail http://localhost:4173/login
       - run: docker compose restart api && docker compose up --wait --wait-timeout 120
       - run: python3 scripts/smoke-m0.py
         env:
           M0_REQUIRE_HEALTHY: "1"
           M0_BASE_URL: http://localhost:4173/api/v1
+      - run: python3 scripts/smoke-m1.py
+        env:
+          M1_BASE_URL: http://localhost:4173/api/v1
       - run: docker compose down
         if: always()

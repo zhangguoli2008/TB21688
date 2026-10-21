@@ -14,6 +14,6 @@ except FileExistsError:
     parser.exit(1, "Existing environment file preserved; choose another --output or reuse it.\n")
 with os.fdopen(fd, "w") as stream:
     stream.write("# LOCAL MOCK DEMO ONLY. Never use production credentials.\n")
-    for name in ("POSTGRES_PASSWORD", "REDIS_PASSWORD", "RABBITMQ_PASSWORD"):
+    for name in ("POSTGRES_PASSWORD", "REDIS_PASSWORD", "RABBITMQ_PASSWORD", "M1_MOCK_WEBHOOK_SECRET"):
         stream.write(f"{name}={secrets.token_urlsafe(32)}\n")
 print(f"Created {args.output}; values are intentionally hidden.")

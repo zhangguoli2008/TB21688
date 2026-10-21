@@ -776,7 +776,7 @@ components:
       name: Idempotency-Key
       in: header
       required: true
-      schema: {type: string, minLength: 8, maxLength: 160}
+      schema: {type: string, minLength: 8, maxLength: 160, pattern: "^[A-Za-z0-9_-]+$"}
     OrderId:
       name: orderId
       in: path
@@ -1460,6 +1460,8 @@ components:
           items:
             $ref: '#/components/schemas/SalesOrderItem'
         timeline:
+          description: 最近100条安全同步事件，按时间正序显示；完整审计检索留后续阶段。
+          maxItems: 100
           type: array
           items:
             $ref: '#/components/schemas/OrderTimelineEntry'
