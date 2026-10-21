@@ -146,3 +146,17 @@ describe('M3 reviewed terminal and authority-wait behavior',()=>{
   const frozen=wrapper.get('[data-testid="mock-checkout-frozen"]');expect(frozen.text()).toContain('正在核实，请勿再次付款');expect(frozen.text()).toContain('等待后台独立权威核验');expect(frozen.find(`a[href="/purchases/${purchase.id}"]`).exists()).toBe(true);expect(frozen.find('a[href="/payments/queue"]').exists()).toBe(true);expect(wrapper.find('[data-testid="simulate-receipt"]').exists()).toBe(false);expect(wrapper.text()).not.toContain('Mock 权威已付');
  });
 });
+
+describe('M3 mixed-read checkout safety',()=>{
+ it.each([
+  {checkoutState:'NEW',paymentState:'PAYING'},
+  {checkoutState:'PAYING',paymentState:'WAIT_MERCHANT_PAYMENT'},
+ ])('freezes receipt input when checkout=$checkoutState and payment=$paymentState',async({checkoutState,paymentState})=>{
+  vi.stubGlobal('fetch',vi.fn(async(path:string)=>{
+   if(path.endsWith('/mock-checkout'))return json({...mockCheckout,attempt:{...attempt,state:checkoutState},canComplete:true});
+   if(path.endsWith('/payment-status'))return json({...payment,state:paymentState});
+   return response(path);
+  }));
+  const {wrapper}=await setup(`/payments/mock/${attempt.id}`);expect(wrapper.find('[data-testid="simulate-receipt"]').exists()).toBe(false);const inflight=wrapper.get('[data-testid="mock-checkout-inflight"]');expect(inflight.text()).toContain('付款处理中');expect(inflight.text()).toContain('回执入口已冻结');expect(inflight.text()).not.toContain('结果未知');
+ });
+});
