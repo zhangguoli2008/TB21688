@@ -36,11 +36,14 @@ class MockSafetyTest {
         environment.setActiveProfiles(production, "demo");
         assertThatThrownBy(() -> RealChannelGuard.validateConfiguration(environment)).isInstanceOf(IllegalStateException.class);
     }
-    @Test void mockAdaptersHaveProbeOnlyAndRefuseRealCapabilities() {
-        for (ProviderAdapter adapter : List.of(new MockSalesAdapter(), new MockSupplierAdapter())) {
+    @Test void mockAdaptersDeclareSyntheticCapabilitiesAndRefuseRealCapabilities() {
+        var supplier=new MockSupplierAdapter(org.mockito.Mockito.mock(org.springframework.jdbc.core.JdbcTemplate.class),new com.fasterxml.jackson.databind.ObjectMapper(),org.mockito.Mockito.mock(RealChannelGuard.class),org.mockito.Mockito.mock(org.springframework.transaction.PlatformTransactionManager.class));
+        for (ProviderAdapter adapter : List.of(new MockSalesAdapter(), supplier)) {
             var probe = adapter.probe();
             assertThat(probe.mode()).isEqualTo("MOCK");
-            assertThat(probe.capabilities()).containsExactly(ProviderAdapter.Capability.DEMO_PROBE);
+            assertThat(probe.capabilities()).contains(ProviderAdapter.Capability.DEMO_PROBE);
+            if(adapter==supplier)assertThat(probe.capabilities()).containsExactlyInAnyOrder(ProviderAdapter.Capability.DEMO_PROBE,ProviderAdapter.Capability.MOCK_SUPPLIER_QUOTE,ProviderAdapter.Capability.MOCK_SUPPLIER_CREATE,ProviderAdapter.Capability.MOCK_SUPPLIER_QUERY);
+            else assertThat(probe.capabilities()).containsExactly(ProviderAdapter.Capability.DEMO_PROBE);
             assertThat(probe.observedAt()).isBeforeOrEqualTo(Instant.now());
             assertThatThrownBy(adapter::requireRealCapability).isInstanceOfSatisfying(ApiException.class, ex -> {
                 assertThat(ex.status()).isEqualTo(422);
