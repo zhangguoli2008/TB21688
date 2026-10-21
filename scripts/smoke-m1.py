@@ -215,5 +215,5 @@ class M1Smoke(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    print("M1 Mock-only HTTP regression. M2 procurement is validated separately; payment remains unavailable.")
+    print("M1 Mock-only HTTP regression. M2 procurement and M3 Mock payments are validated separately.")
     unittest.main(verbosity=2)

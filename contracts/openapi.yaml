@@ -7,7 +7,8 @@ info:
     所有真实平台功能默认关闭；开发只可通过Mock接口验证。
     M0/M1身份、店铺与销售，以及M2映射、Mock报价和异步采购路径；所有真实通道关闭。
     M2创单成功仅为AWAITING_PAYMENT，CREATE_UNKNOWN只查单，不能声称真实采购/付款。
-    其他路径是后续里程碑的设计合同，尚未实现。
+    M3增加付款策略、Mock签约、独立付款尝试、预算预占和只读对账；MANUAL/AUTO/RULE_BASED均只操作合成数据。
+    付款UNKNOWN及人工对账冻结重付；PAID仅表示Mock权威核验结果。其余物流、售后、报表等路径仍为后续设计，尚未实现。
 servers:
   - url: http://localhost:8080/api/v1
     description: 本地Mock环境

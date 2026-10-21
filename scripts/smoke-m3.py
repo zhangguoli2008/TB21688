@@ -124,7 +124,8 @@ class M3Smoke(unittest.TestCase):
         self.enable('RULE_BASED')
         d.set_policy(minEstimatedProfitFen=1000000000000)
         view = d.request(purchase)['data']
-        self.assertEqual('WAIT_MERCHANT_PAYMENT', view['state'])
+        self.assertEqual('BLOCKED', view['state'])
+        self.assertEqual('PROFIT_BELOW_MINIMUM', view['decisionCode'])
         self.assertIsNone(view['attempt'])
         d.set_policy(minEstimatedProfitFen=0)
         self.assertEqual('RULE_BASED', d.wait(purchase, {'PAID'})['attempt']['mode'])
