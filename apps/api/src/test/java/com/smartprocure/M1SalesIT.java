@@ -15,6 +15,7 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.transaction.annotation.Transactional;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
@@ -100,10 +101,27 @@ class M1SalesIT {
     }
     @Test void t010RefundAuthoritySuspendsOrderWithZeroPurchaseWritesM1Boundary() throws Exception {
         Session s=login("OWNER_A"); JsonNode store=store(s); String external=orderId();
-        scenario(s,store.get("id").asText(),external,"REFUNDED",UUID.randomUUID().toString()); worker.runOnce();
+        long purchasesBefore=jdbc.queryForObject("select count(*) from purchase_orders",Long.class);
+        long paymentsBefore=jdbc.queryForObject("select count(*) from payment_attempts",Long.class);
+        // A paid event is already queued when the provider's authority changes to refunded.
+        scenario(s,store.get("id").asText(),external,"PAID",UUID.randomUUID().toString());
+        assertThat(jdbc.queryForObject("select count(*) from sales_orders where tenant_id=? and external_order_id=?",Integer.class,A,external)).isZero();
+        scenario(s,store.get("id").asText(),external,"REFUNDED",UUID.randomUUID().toString());
+        assertThat(jdbc.queryForObject("select source_version from mock_order_authority where tenant_id=? and store_id=? and external_order_id=?",Long.class,A,UUID.fromString(store.get("id").asText()),external)).isEqualTo(2);
+        worker.runOnce();
+        assertThat(jdbc.queryForObject("select source_status from sales_orders where tenant_id=? and external_order_id=?",String.class,A,external)).isEqualTo("REFUNDED");
+        assertThat(jdbc.queryForObject("select source_version from sales_orders where tenant_id=? and external_order_id=?",Long.class,A,external)).isEqualTo(2);
         assertThat(jdbc.queryForObject("select local_status from sales_orders where tenant_id=? and external_order_id=?",String.class,A,external)).isEqualTo("SUSPENDED");
         assertThat(jdbc.queryForObject("select sum(cancelled_qty) from sales_order_items i join sales_orders o on o.tenant_id=i.tenant_id and o.id=i.sales_order_id where o.external_order_id=?",Integer.class,external)).isEqualTo(3);
-        assertThat(jdbc.queryForObject("select count(*) from purchase_orders",Integer.class)).isZero();
+        // A later delivery of the stale paid notification must still re-query the v2 authority.
+        mvc.perform(callback(store.get("integrationId").asText(),"e-"+UUID.randomUUID(),external,1,Long.toString(Instant.now().getEpochSecond()),UUID.randomUUID().toString())).andExpect(status().isOk());
+        worker.runOnce();
+        assertThat(jdbc.queryForObject("select source_status from sales_orders where tenant_id=? and external_order_id=?",String.class,A,external)).isEqualTo("REFUNDED");
+        assertThat(jdbc.queryForObject("select count(*) from sales_orders where tenant_id=? and external_order_id=?",Integer.class,A,external)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("select count(*) from sales_order_items i join sales_orders o on o.tenant_id=i.tenant_id and o.id=i.sales_order_id where o.tenant_id=? and o.external_order_id=?",Integer.class,A,external)).isEqualTo(2);
+        assertThat(jdbc.queryForObject("select count(*) from outbox_events o join inbox_events i on i.tenant_id=o.tenant_id and i.id=o.inbox_id where i.tenant_id=? and i.external_order_id=? and o.state='DONE'",Integer.class,A,external)).isEqualTo(3);
+        assertThat(jdbc.queryForObject("select count(*) from purchase_orders",Long.class)).isEqualTo(purchasesBefore);
+        assertThat(jdbc.queryForObject("select count(*) from payment_attempts",Long.class)).isEqualTo(paymentsBefore);
     }
     @Test void t014SupportPaymentPolicyDeniedWithSafeAuditM1Boundary() throws Exception {
         Session s=login("SUPPORT_A"); String id=UUID.randomUUID().toString();
@@ -111,9 +129,30 @@ class M1SalesIT {
         String details=jdbc.queryForObject("select redacted_details::text from audit_logs where request_id=?",String.class,id);
         assertThat(details).contains("DENIED").doesNotContain("DO_NOT_LOG_SYNTHETIC","credential","token");
     }
-    @Test void t015UnimplementedPurchaseReadDoesNotRevealContentM1Boundary() throws Exception {
-        Session s=login("OWNER_A");
-        mvc.perform(get("/api/v1/purchases/"+UUID.randomUUID()).session(s.session())).andExpect(status().isNotFound()).andExpect(jsonPath("$.data").doesNotExist());
+    @Test @Transactional void t015ExistingTenantBPurchaseRemainsHiddenByClosedM1ReadBoundary() throws Exception {
+        Session a=login("OWNER_A"),b=login("OWNER_B");
+        UUID store=UUID.fromString(store(b).get("id").asText());
+        UUID sale=UUID.randomUUID(),item=UUID.randomUUID(),supplier=UUID.randomUUID(),offer=UUID.randomUUID();
+        UUID mapping=UUID.randomUUID(),intent=UUID.randomUUID(),purchase=UUID.randomUUID();
+        String canary="MOCK-B-PRIVATE-PURCHASE-"+UUID.randomUUID();
+        // Test-only V1 fixtures roll back with this method. No M2 creation/read API is enabled.
+        jdbc.update("insert into sales_orders(id,tenant_id,store_id,external_order_id,source_status,local_status,paid_amount_fen,source_version,source_updated_at) values(?,?,?,?,'PAID','VERIFIED_PAID',12900,1,now())",sale,B,store,orderId());
+        jdbc.update("insert into sales_order_items(id,tenant_id,sales_order_id,external_item_id,external_sku_id,title,qty,paid_allocated_fen) values(?,?,?,'ITEM-1','MOCK-SKU',?,1,12900)",item,B,sale,canary);
+        jdbc.update("insert into supplier_accounts(id,tenant_id,provider,external_account_id) values(?,?,'MOCK',?)",supplier,B,canary);
+        jdbc.update("insert into supplier_offers(id,tenant_id,supplier_account_id,external_offer_id,external_sku_id,display_name) values(?,?,?,?,'MOCK-SKU',?)",offer,B,supplier,canary,canary);
+        jdbc.update("insert into sku_mappings(id,tenant_id,store_id,sales_sku_id,supplier_offer_id) values(?,?,?,'MOCK-SKU',?)",mapping,B,store,offer);
+        jdbc.update("insert into purchase_intents(id,tenant_id,sales_order_item_id,mapping_id,qty) values(?,?,?,?,1)",intent,B,item,mapping);
+        jdbc.update("insert into purchase_orders(id,tenant_id,purchase_intent_id,supplier_account_id,external_order_id,total_fen) values(?,?,?,?,?,12900)",purchase,B,intent,supplier,canary);
+        assertThat(jdbc.queryForObject("select tenant_id from purchase_orders where id=?",UUID.class,purchase)).isEqualTo(B);
+        String requestId=UUID.randomUUID().toString();
+        var denied=mvc.perform(get("/api/v1/purchases/"+purchase).session(a.session()).header("X-Request-Id",requestId).header("X-Tenant-Id",B))
+                .andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("NOT_FOUND"))
+                .andExpect(jsonPath("$.data").doesNotExist()).andReturn();
+        assertThat(denied.getResponse().getContentAsString()).doesNotContain(canary,purchase.toString(),B.toString());
+        assertThat(jdbc.queryForObject("select tenant_id from audit_logs where request_id=?",UUID.class,requestId)).isEqualTo(A);
+        assertThat(jdbc.queryForObject("select external_order_id from purchase_orders where tenant_id=? and id=?",String.class,B,purchase)).isEqualTo(canary);
+        // M1 fails closed for the owner as well; this is not a claim of an implemented purchase reader.
+        mvc.perform(get("/api/v1/purchases/"+purchase).session(b.session())).andExpect(status().isNotFound());
     }
     @Test void t016InvalidSignatureExpiredTimestampNonceReuseAndCrossIntegrationReplayFail() throws Exception {
         Session s=login("OWNER_A"); JsonNode st=store(s),other=store(s); String integration=st.get("integrationId").asText(); String external=orderId();
