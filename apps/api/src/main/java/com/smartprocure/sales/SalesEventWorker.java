@@ -3,6 +3,7 @@ package com.smartprocure.sales;
 import com.smartprocure.audit.AuditService;
 import com.smartprocure.common.ApiException;
 import com.smartprocure.common.M1Support;
+import com.smartprocure.common.M4Activity;
 import com.smartprocure.provider.SalesOrderProviderAdapter;
 import com.smartprocure.store.StoreService;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -22,7 +23,8 @@ public class SalesEventWorker {
     private final StoreService stores;
     private final M1Support support;
     private final AuditService audit;
-    public SalesEventWorker(JdbcTemplate jdbc,org.springframework.transaction.PlatformTransactionManager transactionManager,SalesOrderProviderAdapter provider,StoreService stores,M1Support support,AuditService audit) { this.jdbc=jdbc;this.tx=new TransactionTemplate(transactionManager);this.provider=provider;this.stores=stores;this.support=support;this.audit=audit; }
+    private final M4Activity activity;
+    public SalesEventWorker(JdbcTemplate jdbc,org.springframework.transaction.PlatformTransactionManager transactionManager,SalesOrderProviderAdapter provider,StoreService stores,M1Support support,AuditService audit,M4Activity activity) { this.jdbc=jdbc;this.tx=new TransactionTemplate(transactionManager);this.provider=provider;this.stores=stores;this.support=support;this.audit=audit;this.activity=activity; }
     public void runOnce() {
         stores.requireDemo();
         for(int count=0;count<20;count++) {
@@ -75,6 +77,7 @@ public class SalesEventWorker {
         int completed=jdbc.update("update outbox_events set state='DONE',published_at=now(),lease_until=null,lease_token=null,last_error_code=null where tenant_id=? and id=? and state='PROCESSING' and lease_token=?",job.tenant(),job.id(),job.lease());
         if(completed!=1)throw M1Support.conflict("WORKER_LEASE_LOST");
         audit.object(job.tenant(),null,"MOCK_SALES_AUTHORITY_VERIFIED","SALES_ORDER",order);
+        if("AUTHORITY_APPLIED".equals(action))activity.record(job.tenant(),order,null,"SALES","MOCK_SALES_UPDATED","SALES_ORDER",order,snapshot.sourceStatus(),"sales:"+order+":"+snapshot.sourceVersion(),false);
     }
     private void applyItems(UUID tenant,UUID order,SalesOrderProviderAdapter.Snapshot snapshot) {
         // Purchased items are durable evidence. Missing authority items become non-procurable instead of disappearing.
@@ -82,8 +85,8 @@ public class SalesEventWorker {
         for(var item:snapshot.items())jdbc.update("insert into sales_order_items(tenant_id,sales_order_id,external_item_id,external_sku_id,title,qty,paid_allocated_fen,cancelled_qty,fulfilled_qty) values(?,?,?,?,?,?,?,?,?) on conflict(tenant_id,sales_order_id,external_item_id) do update set external_sku_id=excluded.external_sku_id,title=excluded.title,qty=excluded.qty,paid_allocated_fen=excluded.paid_allocated_fen,cancelled_qty=excluded.cancelled_qty,fulfilled_qty=excluded.fulfilled_qty,version=sales_order_items.version+1",tenant,order,item.externalItemId(),item.externalSkuId(),item.title(),item.qty(),item.paidAllocatedFen(),item.cancelledQty(),item.fulfilledQty());
         List<Object> params=new ArrayList<>();params.add(tenant);params.add(order);params.addAll(ids);
         String missing="tenant_id=? and sales_order_id=? and external_item_id not in ("+String.join(",",Collections.nCopies(ids.size(),"?"))+")";
-        jdbc.update("update sales_order_items i set cancelled_qty=qty-fulfilled_qty,version=version+1 where "+missing+" and exists(select 1 from purchase_intents p where p.tenant_id=i.tenant_id and p.sales_order_item_id=i.id)",params.toArray());
-        jdbc.update("delete from sales_order_items i where "+missing+" and not exists(select 1 from purchase_intents p where p.tenant_id=i.tenant_id and p.sales_order_item_id=i.id)",params.toArray());
+        jdbc.update("update sales_order_items i set cancelled_qty=qty-fulfilled_qty,version=version+1 where "+missing+" and (exists(select 1 from purchase_intents p where p.tenant_id=i.tenant_id and p.sales_order_item_id=i.id) or exists(select 1 from aftersales_cases c where c.tenant_id=i.tenant_id and c.sales_order_item_id=i.id) or exists(select 1 from mock_aftersale_authority a where a.tenant_id=i.tenant_id and a.sales_order_id=i.sales_order_id and a.snapshot->>'salesOrderItemId'=i.id::text))",params.toArray());
+        jdbc.update("delete from sales_order_items i where "+missing+" and not exists(select 1 from purchase_intents p where p.tenant_id=i.tenant_id and p.sales_order_item_id=i.id) and not exists(select 1 from aftersales_cases c where c.tenant_id=i.tenant_id and c.sales_order_item_id=i.id) and not exists(select 1 from mock_aftersale_authority a where a.tenant_id=i.tenant_id and a.sales_order_id=i.sales_order_id and a.snapshot->>'salesOrderItemId'=i.id::text)",params.toArray());
     }
     /** Fence the complete apply transaction; competing claimers use SKIP LOCKED. */
     private boolean ownsLease(Job job) { return !jdbc.query("select id from outbox_events where tenant_id=? and id=? and state='PROCESSING' and lease_token=? and lease_until>now() for update",(r,n)->r.getObject(1,UUID.class),job.tenant(),job.id(),job.lease()).isEmpty(); }

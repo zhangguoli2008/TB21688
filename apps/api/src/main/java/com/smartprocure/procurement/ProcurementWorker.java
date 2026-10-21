@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.smartprocure.audit.AuditService;
 import com.smartprocure.common.ApiException;
 import com.smartprocure.common.M1Support;
+import com.smartprocure.common.M4Activity;
 import com.smartprocure.provider.SalesOrderProviderAdapter;
 import com.smartprocure.provider.SupplierProviderAdapter;
 import com.smartprocure.sourcing.SourcingService;
@@ -29,7 +30,8 @@ public class ProcurementWorker {
     private final SupplierProviderAdapter supplier;
     private final StoreService stores;
     private final AuditService audit;
-    public ProcurementWorker(JdbcTemplate jdbc,ObjectMapper mapper,org.springframework.transaction.PlatformTransactionManager manager,ProcurementPlanner planner,ProcurementRuleEngine engine,ProcurementService service,ProcurementPolicyService policies,SalesOrderProviderAdapter sales,SupplierProviderAdapter supplier,StoreService stores,AuditService audit) { this.jdbc=jdbc;this.mapper=mapper;this.tx=new TransactionTemplate(manager);this.planner=planner;this.engine=engine;this.service=service;this.policies=policies;this.sales=sales;this.supplier=supplier;this.stores=stores;this.audit=audit; }
+    private final M4Activity activity;
+    public ProcurementWorker(JdbcTemplate jdbc,ObjectMapper mapper,org.springframework.transaction.PlatformTransactionManager manager,ProcurementPlanner planner,ProcurementRuleEngine engine,ProcurementService service,ProcurementPolicyService policies,SalesOrderProviderAdapter sales,SupplierProviderAdapter supplier,StoreService stores,AuditService audit,M4Activity activity) { this.jdbc=jdbc;this.mapper=mapper;this.tx=new TransactionTemplate(manager);this.planner=planner;this.engine=engine;this.service=service;this.policies=policies;this.sales=sales;this.supplier=supplier;this.stores=stores;this.audit=audit;this.activity=activity; }
     public void runOnce() {
         stores.requireDemo();planner.runOnce();
         for(int count=0;count<20;count++) {
@@ -110,6 +112,8 @@ public class ProcurementWorker {
         audit.object(job.tenant(),null,"MOCK_PURCHASE_AWAITING_PAYMENT","PURCHASE_INTENT",job.intent());
     }
     private void setState(Job job,String state,String failure) {
+        UUID order=jdbc.queryForObject("select sales_order_id from sales_order_items where tenant_id=? and id=?",UUID.class,job.tenant(),job.item());
+        activity.record(job.tenant(),order,null,"PROCUREMENT","MOCK_PURCHASE_"+state,"PURCHASE_INTENT",job.intent(),failure,"intent:"+job.intent()+":"+state,false);
         jdbc.update("update purchase_intents set state=?,failure_code=?,version=version+1,updated_at=now() where tenant_id=? and id=?",state,failure,job.tenant(),job.intent());
         jdbc.update("update purchase_orders set state=?,version=version+1,updated_at=now() where tenant_id=? and purchase_intent_id=?",state,job.tenant(),job.intent());
     }

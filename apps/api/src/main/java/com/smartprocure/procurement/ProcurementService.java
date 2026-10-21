@@ -3,6 +3,7 @@ package com.smartprocure.procurement;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.smartprocure.audit.AuditService;
 import com.smartprocure.common.M1Support;
+import com.smartprocure.common.M4Activity;
 import com.smartprocure.sourcing.SourcingService;
 import com.smartprocure.store.StoreService;
 import com.smartprocure.tenant.TenantPrincipal;
@@ -29,6 +30,7 @@ public class ProcurementService {
     public record Purchase(UUID id,UUID purchaseIntentId,UUID storeId,UUID salesOrderItemId,UUID supplierAccountId,
                            String externalOrderId,String state,long totalFen,String currency,Instant createdAt,
                            Instant updatedAt,long version,String mode) { }
+    private final M4Activity activity;
     private static final Set<String> STATES=Set.of("APPROVED","CREATING","CREATE_UNKNOWN","AWAITING_PAYMENT","REVIEW_REQUIRED");
     private final JdbcTemplate jdbc;
     private final ObjectMapper mapper;
@@ -39,7 +41,7 @@ public class ProcurementService {
     private final ProcurementPolicyService policies;
     private final AuditService audit;
     private final TransactionTemplate tx;
-    public ProcurementService(JdbcTemplate jdbc,ObjectMapper mapper,M1Support support,StoreService stores,SourcingService sourcing,ProcurementRuleEngine engine,ProcurementPolicyService policies,AuditService audit,org.springframework.transaction.PlatformTransactionManager manager) { this.jdbc=jdbc;this.mapper=mapper;this.support=support;this.stores=stores;this.sourcing=sourcing;this.engine=engine;this.policies=policies;this.audit=audit;this.tx=new TransactionTemplate(manager); }
+    public ProcurementService(JdbcTemplate jdbc,ObjectMapper mapper,M1Support support,StoreService stores,SourcingService sourcing,ProcurementRuleEngine engine,ProcurementPolicyService policies,AuditService audit,org.springframework.transaction.PlatformTransactionManager manager,M4Activity activity) { this.jdbc=jdbc;this.mapper=mapper;this.support=support;this.stores=stores;this.sourcing=sourcing;this.engine=engine;this.policies=policies;this.audit=audit;this.tx=new TransactionTemplate(manager); this.activity=activity; }
     private <T> T parse(String json,Class<T> type) { if(json==null)return null;try{return mapper.readValue(json,type);}catch(java.io.IOException ex){throw new IllegalStateException(ex);} }
     private Intent intentRow(ResultSet r,int n)throws SQLException {
         String failure=r.getString("failure_code");
@@ -97,13 +99,15 @@ public class ProcurementService {
         validateLocked(tenant,evaluation,policy,quote,true);
         UUID id=UUID.randomUUID();String reference="MOCK-PI-"+id;
         jdbc.update("insert into purchase_intents(id,tenant_id,sales_order_item_id,mapping_id,qty,state,estimated_total_fen,quote_snapshot,policy_snapshot,evaluation_snapshot,quote_expires_at,quote_id,mapping_version,sales_item_version,sales_source_version,supplier_offer_id,supplier_account_id,client_reference,currency) values(?,?,?,?,?,'APPROVED',?,?::jsonb,?::jsonb,?::jsonb,?,?,?,?,?,?,?,?,?)",id,tenant,evaluation.salesOrderItemId(),evaluation.mappingId(),evaluation.qty(),quote.totalFen(),support.json(quote),support.json(evaluation.policySnapshot()),support.json(evaluation),Timestamp.from(quote.expiresAt()),quote.id(),evaluation.mappingVersion(),evaluation.salesItemVersion(),evaluation.salesSourceVersion(),quote.offerId(),quote.supplierAccountId(),reference,quote.currency());
+        UUID order=jdbc.queryForObject("select sales_order_id from sales_order_items where tenant_id=? and id=?",UUID.class,tenant,evaluation.salesOrderItemId());
+        activity.record(tenant,order,null,"PROCUREMENT","MOCK_PURCHASE_INTENT_CREATED","PURCHASE_INTENT",id,null,"intent:"+id,false);
         jdbc.update("insert into outbox_events(event_type,tenant_id,aggregate_id,payload) values('M2_PURCHASE_CREATE',?,?,'{}'::jsonb)",tenant,id);
         audit.object(tenant,actor,"MOCK_PURCHASE_INTENT_APPROVED","PURCHASE_INTENT",id);return internal(tenant,id);
     }
     /** Recheck every mutable local prerequisite while tenant/store policy reservation locks are held. */
     public void validateLocked(UUID tenant,ProcurementRuleEngine.Evaluation evaluation,ProcurementPolicyService.PolicySnapshot policy,SourcingService.QuoteView quote,boolean reserve) {
         if(!policy.effective().enabled()||policy.tenantVersion()!=evaluation.policySnapshot().tenantVersion()||policy.storeVersion()!=evaluation.policySnapshot().storeVersion())throw M1Support.conflict("POLICY_CHANGED");
-        var item=jdbc.query("select i.version,o.source_version,o.source_status,i.qty-i.cancelled_qty-i.fulfilled_qty qty from sales_order_items i join sales_orders o on o.tenant_id=i.tenant_id and o.id=i.sales_order_id where i.tenant_id=? and i.id=? for update of o,i",(r,n)->new Object[]{r.getLong(1),r.getLong(2),r.getString(3),r.getInt(4)},tenant,evaluation.salesOrderItemId()).stream().findFirst().orElseThrow(M1Support::missing);
+        var item=jdbc.query("select i.version,o.source_version,o.source_status,i.qty-i.cancelled_qty-greatest(i.fulfilled_qty,i.shipment_ack_qty)-i.aftersale_hold_qty qty from sales_order_items i join sales_orders o on o.tenant_id=i.tenant_id and o.id=i.sales_order_id where i.tenant_id=? and i.id=? for update of o,i",(r,n)->new Object[]{r.getLong(1),r.getLong(2),r.getString(3),r.getInt(4)},tenant,evaluation.salesOrderItemId()).stream().findFirst().orElseThrow(M1Support::missing);
         if((long)item[0]!=evaluation.salesItemVersion()||(long)item[1]!=evaluation.salesSourceVersion()||!"PAID".equals(item[2])||(int)item[3]!=evaluation.qty())throw M1Support.conflict("SALES_CHANGED");
         var mapping=jdbc.query("select version,status,supplier_offer_id from sku_mappings where tenant_id=? and id=? for update",(r,n)->new Object[]{r.getLong(1),r.getString(2),r.getObject(3,UUID.class)},tenant,evaluation.mappingId()).stream().findFirst().orElseThrow(M1Support::missing);
         if((long)mapping[0]!=evaluation.mappingVersion()||!"CONFIRMED".equals(mapping[1])||!quote.offerId().equals(mapping[2]))throw M1Support.conflict("MAPPING_CHANGED");

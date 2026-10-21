@@ -3,6 +3,7 @@ package com.smartprocure.payment;
 import com.smartprocure.audit.AuditService;
 import com.smartprocure.common.ApiException;
 import com.smartprocure.common.M1Support;
+import com.smartprocure.common.M4Activity;
 import com.smartprocure.provider.PaymentProviderAdapter;
 import com.smartprocure.provider.MockPaymentAdapter;
 import com.smartprocure.provider.SalesOrderProviderAdapter;
@@ -17,8 +18,9 @@ import java.util.*;
 public class PaymentWorker {
     private record Job(UUID event,UUID tenant,UUID attempt,UUID purchase,UUID lease,boolean queryOnly) { }
     private final JdbcTemplate jdbc;private final TransactionTemplate tx;private final PaymentService service;private final PaymentPolicyService policies;private final PaymentProviderAdapter provider;private final SalesOrderProviderAdapter sales;private final StoreService stores;private final AuditService audit;
+    private final M4Activity activity;
     private UUID cursor;
-    public PaymentWorker(JdbcTemplate jdbc,org.springframework.transaction.PlatformTransactionManager manager,PaymentService service,PaymentPolicyService policies,PaymentProviderAdapter provider,SalesOrderProviderAdapter sales,StoreService stores,AuditService audit){this.jdbc=jdbc;this.tx=new TransactionTemplate(manager);this.service=service;this.policies=policies;this.provider=provider;this.sales=sales;this.stores=stores;this.audit=audit;}
+    public PaymentWorker(JdbcTemplate jdbc,org.springframework.transaction.PlatformTransactionManager manager,PaymentService service,PaymentPolicyService policies,PaymentProviderAdapter provider,SalesOrderProviderAdapter sales,StoreService stores,AuditService audit,M4Activity activity){this.jdbc=jdbc;this.tx=new TransactionTemplate(manager);this.service=service;this.policies=policies;this.provider=provider;this.sales=sales;this.stores=stores;this.audit=audit;this.activity=activity;}
     public void runOnce(){stores.requireDemo();plan();for(int i=0;i<20;i++){Job job=tx.execute(s->claim());if(job==null)return;boolean launched=false;boolean query=false;try{
         var p=service.purchase(job.tenant(),job.purchase());var a=service.attempt(job.tenant(),job.attempt());var request=service.providerRequest(p,a);
         if("NEW".equals(a.state())&&!"MANUAL".equals(a.mode())&&!job.queryOnly()){
@@ -63,9 +65,9 @@ public class PaymentWorker {
         String state=result.state();int n=jdbc.update("update payment_attempts set state=?,provider_payment_reference=?,failure_code=?,resolved_at=now(),last_verified_at=now(),reconciliation_count=reconciliation_count+1,version=version+1 where tenant_id=? and id=? and version=? and state in ('NEW','PAYING','UNKNOWN','MANUAL_RECONCILIATION')",state,result.paymentReference(),"FAILED".equals(state)?"PAYMENT_DECLINED":null,j.tenant(),j.attempt(),a.version());if(n!=1)throw M1Support.conflict("PAYMENT_STATE_CHANGED");
         jdbc.update("update payment_budget_reservations set state=? where tenant_id=? and payment_attempt_id=?","PAID".equals(state)?"CONSUMED":"RELEASED",j.tenant(),j.attempt());
         if("PAID".equals(state)){jdbc.update("update purchase_orders set state='PAID',payment_decision_code=null,version=version+1,updated_at=now() where tenant_id=? and id=?",j.tenant(),j.purchase());jdbc.update("update purchase_intents set state='PAID',version=version+1,updated_at=now() where tenant_id=? and id=?",j.tenant(),p.intent());}
-        reconcileRecord(j,state,state);finish(j,"DONE",null);audit.object(j.tenant(),null,"MOCK_PAYMENT_"+state,"PAYMENT_ATTEMPT",j.attempt());
+        activity.record(j.tenant(),p.order(),null,"PAYMENT","MOCK_PAYMENT_"+state,"PAYMENT_ATTEMPT",j.attempt(),state,"payment:"+j.attempt()+":"+state,true);reconcileRecord(j,state,state);finish(j,"DONE",null);audit.object(j.tenant(),null,"MOCK_PAYMENT_"+state,"PAYMENT_ATTEMPT",j.attempt());
     }
-    private void unknown(Job j,PaymentService.Attempt a,String code,boolean queried,String outcome){int c=count(j)+(queried?1:0);String next=c>=5?"MANUAL_RECONCILIATION":"UNKNOWN";int n=jdbc.update("update payment_attempts set state=?,failure_code=?,reconciliation_count=?,last_verified_at=case when ? then now() else last_verified_at end,version=version+1 where tenant_id=? and id=? and version=? and state not in ('PAID','FAILED')",next,code,c,queried,j.tenant(),j.attempt(),a.version());if(n!=1)throw M1Support.conflict("PAYMENT_STATE_CHANGED");if(queried)reconcileRecord(j,outcome,next);retry(j,code,c);audit.object(j.tenant(),null,"MOCK_PAYMENT_FROZEN","PAYMENT_ATTEMPT",j.attempt());}
+    private void unknown(Job j,PaymentService.Attempt a,String code,boolean queried,String outcome){int c=count(j)+(queried?1:0);String next=c>=5?"MANUAL_RECONCILIATION":"UNKNOWN";int n=jdbc.update("update payment_attempts set state=?,failure_code=?,reconciliation_count=?,last_verified_at=case when ? then now() else last_verified_at end,version=version+1 where tenant_id=? and id=? and version=? and state not in ('PAID','FAILED')",next,code,c,queried,j.tenant(),j.attempt(),a.version());if(n!=1)throw M1Support.conflict("PAYMENT_STATE_CHANGED");activity.record(j.tenant(),service.purchase(j.tenant(),j.purchase()).order(),null,"PAYMENT","MOCK_PAYMENT_FROZEN","PAYMENT_ATTEMPT",j.attempt(),code,"payment:"+j.attempt()+":"+next,true);if(queried)reconcileRecord(j,outcome,next);retry(j,code,c);audit.object(j.tenant(),null,"MOCK_PAYMENT_FROZEN","PAYMENT_ATTEMPT",j.attempt());}
     private void failure(Job j,RuntimeException ex,boolean launched,boolean queried){policies.lock(j.tenant());if(!owns(j))return;var a=service.attempt(j.tenant(),j.attempt());String code=ex instanceof ApiException api?api.code():"PAYMENT_TEMPORARILY_UNAVAILABLE";
         if(launched||PaymentService.FROZEN.contains(a.state()))unknown(j,a,code,queried,"UNKNOWN");else if("NEW".equals(a.state())&&"MANUAL".equals(a.mode())){reconcileRecord(j,"UNKNOWN",a.state());finish(j,"BLOCKED",code);}else if("NEW".equals(a.state()))routeManual(j,service.purchase(j.tenant(),j.purchase()),a,code);else finish(j,"DONE",code);
     }

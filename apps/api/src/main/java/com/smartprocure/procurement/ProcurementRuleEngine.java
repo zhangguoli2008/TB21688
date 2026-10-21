@@ -29,11 +29,12 @@ public class ProcurementRuleEngine {
     }
     public Evaluation evaluate(UUID tenant,UUID itemId) {
         stores.requireDemo();
-        Item item=jdbc.query("select i.*,o.store_id,o.currency,o.source_status,o.source_version from sales_order_items i join sales_orders o on o.tenant_id=i.tenant_id and o.id=i.sales_order_id where i.tenant_id=? and i.id=?",(r,n)->new Item(r.getObject("store_id",UUID.class),r.getString("external_sku_id"),r.getInt("qty"),r.getInt("qty")-r.getInt("cancelled_qty")-r.getInt("fulfilled_qty"),r.getLong("paid_allocated_fen"),r.getString("currency"),r.getString("source_status"),r.getLong("version"),r.getLong("source_version")),tenant,itemId).stream().findFirst().orElseThrow(M1Support::missing);
+        Item item=jdbc.query("select i.*,o.store_id,o.currency,o.source_status,o.source_version from sales_order_items i join sales_orders o on o.tenant_id=i.tenant_id and o.id=i.sales_order_id where i.tenant_id=? and i.id=?",(r,n)->new Item(r.getObject("store_id",UUID.class),r.getString("external_sku_id"),r.getInt("qty"),r.getInt("qty")-r.getInt("cancelled_qty")-Math.max(r.getInt("fulfilled_qty"),r.getInt("shipment_ack_qty"))-r.getInt("aftersale_hold_qty"),r.getLong("paid_allocated_fen"),r.getString("currency"),r.getString("source_status"),r.getLong("version"),r.getLong("source_version")),tenant,itemId).stream().findFirst().orElseThrow(M1Support::missing);
         var snapshot=policies.getEffective(tenant,item.storeId());var policy=snapshot.effective();List<Reason> reasons=new ArrayList<>();
         try { stores.requireActive(tenant,item.storeId(),false); } catch(ApiException ex) { reasons.add(reason(ex.code())); }
         if(!"PAID".equals(item.sourceStatus()))reasons.add(reason("SALES_ORDER_NOT_PAID"));
         if(item.qty()<=0)reasons.add(reason("NO_REMAINING_QUANTITY"));
+        if(Boolean.TRUE.equals(jdbc.queryForObject("select aftersale_hold_qty>0 from sales_order_items where tenant_id=? and id=?",Boolean.class,tenant,itemId)))reasons.add(reason("AFTERSALE_ALLOCATION_REVIEW"));
         if(!policy.enabled())reasons.add(reason("PROCUREMENT_DISABLED"));
         if(!"CNY".equals(item.currency()))reasons.add(reason("CURRENCY_UNSUPPORTED"));
         List<Mapping> mappings=jdbc.query("select m.id,m.supplier_offer_id,m.priority,m.version,f.compatible_sales_sku_id from sku_mappings m join supplier_offers f on f.tenant_id=m.tenant_id and f.id=m.supplier_offer_id where m.tenant_id=? and m.store_id=? and m.sales_sku_id=? and m.status='CONFIRMED' order by m.priority,m.id",(r,n)->new Mapping(r.getObject(1,UUID.class),r.getObject(2,UUID.class),r.getInt(3),r.getLong(4),r.getString(5)),tenant,item.storeId(),item.sku());
@@ -82,6 +83,7 @@ public class ProcurementRuleEngine {
         case "MAPPING_NOT_CONFIRMED" -> "销售SKU没有已人工确认的货源映射";
         case "SPECIFICATION_MISMATCH" -> "销售SKU与合成货源规格不一致";
         case "SALES_ORDER_NOT_PAID" -> "销售订单未付款、已取消或退款中";
+        case "AFTERSALE_ALLOCATION_REVIEW" -> "该子项存在售后冻结，剩余数量需人工核对分配";
         case "NO_REMAINING_QUANTITY" -> "没有剩余应履约数量";
         case "PROCUREMENT_DISABLED" -> "租户或店铺采购策略已暂停";
         case "STOCK_INSUFFICIENT" -> "供应商库存不足";

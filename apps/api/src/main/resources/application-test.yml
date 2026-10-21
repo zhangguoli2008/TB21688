@@ -4,5 +4,10 @@ server:
       cookie:
         secure: false
 spring:
+  datasource:
+    hikari:
+      # Several cached integration-test contexts share PostgreSQL's connection limit.
+      maximum-pool-size: 4
+      minimum-idle: 0
   rabbitmq:
     port: 1

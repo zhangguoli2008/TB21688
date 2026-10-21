@@ -20,7 +20,7 @@ public class ProcurementPlanner {
             select i.tenant_id,i.id from sales_order_items i
             join sales_orders o on o.tenant_id=i.tenant_id and o.id=i.sales_order_id
             join tenants t on t.id=i.tenant_id
-            where t.status='ACTIVE' and o.source_status='PAID' and i.qty>i.cancelled_qty+i.fulfilled_qty
+            where t.status='ACTIVE' and o.source_status='PAID' and i.aftersale_hold_qty=0 and i.qty>i.cancelled_qty+greatest(i.fulfilled_qty,i.shipment_ack_qty)+i.aftersale_hold_qty
             and exists(select 1 from sku_mappings m where m.tenant_id=i.tenant_id and m.store_id=o.store_id and m.sales_sku_id=i.external_sku_id and m.status='CONFIRMED')
             and not exists(select 1 from procurement_policies p where p.tenant_id=i.tenant_id and (p.store_id is null or p.store_id=o.store_id) and not p.enabled)
             and not exists(select 1 from purchase_intents pi where pi.tenant_id=i.tenant_id and pi.sales_order_item_id=i.id and pi.fulfillment_slice_no=1)

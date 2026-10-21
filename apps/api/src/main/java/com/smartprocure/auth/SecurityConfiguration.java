@@ -57,6 +57,18 @@ public class SecurityConfiguration {
                             .requestMatchers(HttpMethod.POST,"/api/v1/purchases/*/payments","/api/v1/purchases/*/payment-reconcile").hasAuthority("payments.manage")
                             .requestMatchers(HttpMethod.GET,"/api/v1/mock/purchases/*/payment-config").hasAuthority("payments.manage")
                             .requestMatchers(HttpMethod.PATCH,"/api/v1/mock/purchases/*/payment-config").hasAuthority("payments.manage")
+                            .requestMatchers(HttpMethod.GET,"/api/v1/shipments","/api/v1/shipments/*").hasAuthority("logistics.read")
+                            .requestMatchers(HttpMethod.POST,"/api/v1/mock/purchases/*/shipment-events","/api/v1/shipments/*/sync-retry").hasAuthority("logistics.manage")
+                            .requestMatchers(HttpMethod.PATCH,"/api/v1/mock/shipments/*/sync-config").hasAuthority("logistics.manage")
+                            .requestMatchers(HttpMethod.GET,"/api/v1/aftersales","/api/v1/aftersales/*").hasAuthority("aftersales.read")
+                            .requestMatchers(HttpMethod.PATCH,"/api/v1/aftersales/*").hasAuthority("aftersales.manage")
+                            .requestMatchers(HttpMethod.POST,"/api/v1/aftersales/*/reconcile").hasAuthority("aftersales.manage")
+                            .requestMatchers(HttpMethod.POST,"/api/v1/mock/orders/*/aftersale-events","/api/v1/mock/aftersales/*/supplier-events").hasAuthority("aftersales.simulate")
+                            .requestMatchers(HttpMethod.GET,"/api/v1/reports/overview","/api/v1/reports/orders").hasAuthority("reports.read")
+                            .requestMatchers(HttpMethod.POST,"/api/v1/reports/refresh").hasAuthority("reports.manage")
+                            .requestMatchers(HttpMethod.GET,"/api/v1/notifications").hasAuthority("notifications.read")
+                            .requestMatchers(HttpMethod.POST,"/api/v1/notifications/*/read").hasAuthority("notifications.read")
+                            .requestMatchers(HttpMethod.GET,"/api/v1/orders/*/activity").hasAuthority("orders.read")
                             .anyRequest().authenticated();
                 })
                 .addFilterBefore(new SessionIdentityFilter(identities, guard, errors, audit), CsrfFilter.class);
