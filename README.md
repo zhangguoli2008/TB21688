@@ -1,6 +1,6 @@
 # 智采云 SmartProcure
 
-当前交付：**M2 SKU映射、报价与采购意图 Mock 演示**。在已验收 M1 店铺、销售订单和租户隔离之上，增加人工确认映射、合成供应商报价、采购规则和异步 Mock 创单。M2 自动化、Chrome交互及桌面断点验收记录见 `docs/29_M2实施计划与验收.md`。支付、物流业务尚未实现；真实平台通道全部禁用。
+当前交付：**M3 付款核心 Mock 实现，Chrome 验收待完成**。在已验收 M2 映射、报价和异步采购之上，增加 MANUAL/AUTO/RULE_BASED、Mock签约、独立付款尝试、并发预算与未知结果只读对账。自动化和验收进展见 `docs/30_M3实施计划与验收.md`；M2 已验收记录保留在 `docs/29_M2实施计划与验收.md`。所有付款结果均为合成 Mock；真实平台通道关闭，物流尚未实现。
 
 ## 快速启动（Docker）
 
@@ -66,7 +66,7 @@ Mock Webhook 只接受安全引用字段，HMAC 覆盖 `timestamp.nonce.integrat
 
 HTTP验收脚本依次从环境变量、项目 `.env`、公开伪默认读取该特定键，绝不打印签名密钥。M1 HTTP 可指定 `M1_BASE_URL=http://localhost:4173/api/v1`；使用原生公开伪默认时请显式提供相同值，避免被已有容器 `.env` 覆盖。
 
-M1 原验收记录保留在 `docs/28_M1实施计划与验收.md`；M2 增量覆盖采购前退款复核和已存在采购对象的隔离。T-014 的支付策略完整流程仍待 M3；同账号多租户切换尚未实现，T-021 验证独立会话并发和重新登录身份轮换。
+M1 原验收记录保留在 `docs/28_M1实施计划与验收.md`；M2 增量覆盖采购前退款复核和已存在采购对象的隔离。T-014 的支付策略权限流程已在 M3 增量覆盖；同账号多租户切换尚未实现，T-021 验证独立会话并发和重新登录身份轮换。
 
 ## M2 可重复合成演示
 
@@ -80,7 +80,7 @@ M1 原验收记录保留在 `docs/28_M1实施计划与验收.md`；M2 增量覆�
 
 `scripts/smoke-m2.py` 只用于专用本地演示环境：每次创建独立合成店铺/销售单，临时提高 Mock 租户采购限额并恢复；暂停本次映射、恢复货源配置，保留合成历史便于复核。可指定 `M2_BASE_URL=http://localhost:4173/api/v1`。Worker 可用 `APP_MOCK_WORKER_ENABLED=false` 总体关闭；测试通过专用 schema 和关闭调度控制时序，不拿异步等待替代断言。
 
-## M3 可重复付款模拟（实施中，验收记录见 docs/30）
+## M3 可重复付款模拟（Chrome 待验收，记录见 docs/30）
 
 M3仅运行本地Mock：PaymentPolicy的MANUAL/AUTO/RULE_BASED、签约状态、付款尝试/预算、异步Worker和只读对账。初始策略为MANUAL且暂停，签约PENDING；真实通道仍关闭。租户停付作用于所有店铺，独立平台总停付由`APP_PAYMENT_EMERGENCY_STOP=true`或全局feature flag `payment_emergency_stop`控制；均不会阻止在途只读查询。本轮不扩充平台管理员控制台。
 
