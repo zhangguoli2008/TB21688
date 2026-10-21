@@ -121,8 +121,8 @@ class M3Smoke(unittest.TestCase):
         d = self.demo
         purchase = d.purchase()
         d.set_mandate('ACTIVE')
-        self.enable('RULE_BASED')
-        d.set_policy(minEstimatedProfitFen=1000000000000)
+        # Enable with the intended gate atomically: a live worker may plan immediately.
+        self.enable('RULE_BASED', minEstimatedProfitFen=1000000000000)
         view = d.request(purchase)['data']
         self.assertEqual('BLOCKED', view['state'])
         self.assertEqual('PROFIT_BELOW_MINIMUM', view['decisionCode'])
