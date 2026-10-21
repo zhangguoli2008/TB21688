@@ -35,7 +35,18 @@ class M3PaymentIT {
         p.add("spring.datasource.username",()->System.getenv().getOrDefault("M0_TEST_DB_USER","postgres"));
         p.add("spring.datasource.password",()->System.getenv().getOrDefault("M0_TEST_DB_PASSWORD",""));
     }
+    static class ControlledClock extends java.time.Clock {
+        final java.util.concurrent.atomic.AtomicReference<java.time.Instant> current=new java.util.concurrent.atomic.AtomicReference<>();
+        @Override public java.time.ZoneId getZone(){return java.time.ZoneOffset.UTC;}
+        @Override public java.time.Clock withZone(java.time.ZoneId zone){return this;}
+        @Override public java.time.Instant instant(){var value=current.get();return value==null?java.time.Instant.now():value;}
+    }
+    @org.springframework.boot.test.context.TestConfiguration static class ClockConfig {
+        @org.springframework.context.annotation.Bean @org.springframework.context.annotation.Primary ControlledClock controlledClock(){return new ControlledClock();}
+    }
+    @Autowired ControlledClock clock;
     @BeforeEach void cleanSyntheticBusinessFixtures() {
+        clock.current.set(null);
         jdbc.execute("truncate stores,supplier_accounts cascade");
         jdbc.update("delete from audit_logs");
         jdbc.update("update payment_policies set mode='MANUAL',is_paused=true,max_single_fen=50000,max_daily_fen=200000,max_store_single_fen=50000,max_store_daily_fen=200000,min_estimated_profit_fen=0,new_supplier_first_order_manual=true");
@@ -296,6 +307,83 @@ class M3PaymentIT {
         try(var pool=Executors.newSingleThreadExecutor()){
             var future=pool.submit(()->view(f));assertThat(read.await(5,java.util.concurrent.TimeUnit.SECONDS)).isTrue();worker();committed.countDown();JsonNode observed=future.get(5,java.util.concurrent.TimeUnit.SECONDS),after=view(f);assertThat(observed).isIn(before,after);
         }finally{committed.countDown();}
+    }
+
+    void runWorkerAcrossBlockedStore(UUID store,java.time.Instant before,java.time.Instant after)throws Exception {
+        runAcrossBlockedStore(store,before,after,()->{worker();return null;});
+    }
+    void runAcrossBlockedStore(UUID store,java.time.Instant before,java.time.Instant after,java.util.concurrent.Callable<Void> action)throws Exception {
+        var held=new java.util.concurrent.CountDownLatch(1);var release=new java.util.concurrent.CountDownLatch(1);var waiting=new java.util.concurrent.CountDownLatch(1);var first=new java.util.concurrent.atomic.AtomicBoolean(true);
+        clock.current.set(before);
+        var backendPid=new java.util.concurrent.atomic.AtomicInteger();
+        org.mockito.Mockito.doAnswer(inv->{String sql=inv.getArgument(0);if(Thread.currentThread().getName().equals("blocked-payment-launch")&&sql.startsWith("select s.* from stores s")&&sql.contains("for no key update")&&first.compareAndSet(true,false)){
+            assertThat(org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive()).isTrue();
+            assertThat(clock.instant()).isEqualTo(before);backendPid.set(jdbc.queryForObject("select pg_backend_pid()",Integer.class));waiting.countDown();
+        }return inv.callRealMethod();}).when(jdbc).query(org.mockito.ArgumentMatchers.anyString(),org.mockito.ArgumentMatchers.any(org.springframework.jdbc.core.RowMapper.class),org.mockito.ArgumentMatchers.any(Object[].class));
+        try(var pool=Executors.newFixedThreadPool(2)){
+            var holder=pool.submit(()->new org.springframework.transaction.support.TransactionTemplate(context.getBean(org.springframework.transaction.PlatformTransactionManager.class)).executeWithoutResult(st->{
+                jdbc.queryForObject("select id from stores where tenant_id=? and id=? for update",UUID.class,A,store);held.countDown();try{assertThat(release.await(5,java.util.concurrent.TimeUnit.SECONDS)).isTrue();}catch(InterruptedException ex){throw new IllegalStateException(ex);}
+            }));
+            assertThat(held.await(5,java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+            var running=pool.submit(()->{Thread.currentThread().setName("blocked-payment-launch");return action.call();});
+            try{
+                assertThat(waiting.await(5,java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+                long deadline=System.nanoTime()+java.time.Duration.ofSeconds(4).toNanos();String waitType;
+                do{waitType=jdbc.queryForObject("select wait_event_type from pg_stat_activity where pid=?",String.class,backendPid.get());if(!"Lock".equals(waitType))Thread.sleep(5);}while(!"Lock".equals(waitType)&&System.nanoTime()<deadline);
+                assertThat(waitType).as("the launch transaction must actually wait for the store lock before midnight changes").isEqualTo("Lock");
+                clock.current.set(after);
+            }finally{release.countDown();}
+            holder.get(5,java.util.concurrent.TimeUnit.SECONDS);running.get(5,java.util.concurrent.TimeUnit.SECONDS);
+        }finally{release.countDown();}
+    }
+    @Test void launchUsesOneWallClockDayAfterWaitingForTenantLock()throws Exception {
+        Fixture f=fixture("AUTO","NORMAL",true),g=fixture("AUTO","NORMAL",true);policy(f.s(),"AUTO",false,2101,2101);
+        command(f,"payments",UUID.randomUUID().toString(),202);jdbc.update("update payment_budget_reservations set budget_date='2060-12-31' where tenant_id=?",A);command(g,"payments",UUID.randomUUID().toString(),202);
+        jdbc.update("update payment_budget_reservations b set budget_date='2061-01-01' from payment_attempts a where a.tenant_id=b.tenant_id and a.id=b.payment_attempt_id and a.tenant_id=? and a.purchase_order_id=?",A,g.purchase());
+        jdbc.update("update payment_mandates set expires_at='2062-01-01' where tenant_id=?",A);
+        jdbc.update("update outbox_events e set available_at=now()-interval '1 minute' from payment_attempts a where e.tenant_id=a.tenant_id and e.aggregate_id=a.id and a.tenant_id=? and a.purchase_order_id=?",A,f.purchase());
+        java.time.Instant after=java.time.Instant.parse("2061-01-01T00:00:01Z");runWorkerAcrossBlockedStore(f.store(),java.time.Instant.parse("2060-12-31T23:59:59Z"),after);
+        assertThat(calls(f)).as("old-day waiting launch must include the already reserved new-day payment").isZero();assertThat(calls(g)).isEqualTo(1);
+        assertThat(view(g).at("/attempt/startedAt").asText()).isEqualTo(after.toString());
+        assertThat(jdbc.queryForObject("select b.budget_date::text from payment_budget_reservations b join payment_attempts a on a.tenant_id=b.tenant_id and a.id=b.payment_attempt_id where a.tenant_id=? and a.purchase_order_id=?",String.class,A,g.purchase())).isEqualTo("2061-01-01");
+    }
+    @Test void mandateExpiringWhileWaitingForTenantLockPreventsNewProviderCall()throws Exception {
+        Fixture f=fixture("AUTO","NORMAL",true);command(f,"payments",UUID.randomUUID().toString(),202);
+        jdbc.update("update payment_mandates set expires_at='2061-01-01T00:00:00Z' where tenant_id=? and supplier_account_id=?",A,f.account());
+        runWorkerAcrossBlockedStore(f.store(),java.time.Instant.parse("2060-12-31T23:59:59Z"),java.time.Instant.parse("2061-01-01T00:00:01Z"));
+        assertThat(calls(f)).isZero();assertThat(view(f).get("decisionCode").asText()).isEqualTo("MANDATE_UNAVAILABLE");
+    }
+    @Test void manualLaunchUsesOneWallClockDayAfterWaitingForTenantLock()throws Exception {
+        Fixture f=fixture("MANUAL","NORMAL",false),g=fixture("MANUAL","NORMAL",false);policy(f.s(),"MANUAL",false,2101,2101);
+        UUID first=UUID.fromString(command(f,"checkout-entry",UUID.randomUUID().toString(),200).get("attemptId").asText());
+        jdbc.update("update payment_budget_reservations set budget_date='2060-12-31' where tenant_id=?",A);
+        UUID second=UUID.fromString(command(g,"checkout-entry",UUID.randomUUID().toString(),200).get("attemptId").asText());
+        jdbc.update("update payment_budget_reservations set budget_date='2061-01-01' where tenant_id=? and payment_attempt_id=?",A,second);
+        jdbc.update("update payment_attempts set checkout_expires_at='2062-01-01' where tenant_id=?",A);
+        java.time.Instant after=java.time.Instant.parse("2061-01-01T00:00:01Z");
+        runAcrossBlockedStore(f.store(),java.time.Instant.parse("2060-12-31T23:59:59Z"),after,()->{
+            mvc.perform(post("/api/v1/mock/payment-attempts/"+first+"/receipt").session(f.s().session()).header("X-CSRF-TOKEN",f.s().csrf()).header("Idempotency-Key",UUID.randomUUID().toString()).contentType("application/json").content("{\"outcome\":\"PAID\"}"))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("TENANT_DAILY_LIMIT_EXCEEDED"));return null;
+        });
+        assertThat(view(f).at("/attempt/state").asText()).isEqualTo("NEW");
+        receipt(g,second,"PAID");worker();assertThat(view(g).get("state").asText()).isEqualTo("PAID");
+        assertThat(view(g).at("/attempt/startedAt").asText()).isEqualTo(after.toString());
+    }
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings={"MAPPING","OFFER"})
+    void manualLaunchHoldsMappingUntilDurablePayingAgainstConcurrentPatch(String target)throws Exception {
+        Fixture f=fixture("MANUAL","NORMAL",false);UUID attempt=UUID.fromString(command(f,"checkout-entry",UUID.randomUUID().toString(),200).get("attemptId").asText());UUID mapping=jdbc.queryForObject("select id from sku_mappings where tenant_id=? and supplier_offer_id=?",UUID.class,A,f.offer());Session editor=login("OWNER_A");
+        var checked=new java.util.concurrent.CountDownLatch(1);var proceed=new java.util.concurrent.CountDownLatch(1);var updating=new java.util.concurrent.CountDownLatch(1);var once=new java.util.concurrent.atomic.AtomicBoolean(true);
+        org.mockito.Mockito.doAnswer(inv->{Object result=inv.callRealMethod();String sql=inv.getArgument(0);if(Thread.currentThread().getName().equals("manual-launch")&&sql.startsWith("select exists(select 1 from sku_mappings")&&once.compareAndSet(true,false)){checked.countDown();assertThat(proceed.await(5,java.util.concurrent.TimeUnit.SECONDS)).isTrue();}return result;}).when(jdbc).queryForObject(org.mockito.ArgumentMatchers.anyString(),org.mockito.ArgumentMatchers.<Class<Object>>any(),org.mockito.ArgumentMatchers.any(Object[].class));
+        org.mockito.Mockito.doAnswer(inv->{String sql=inv.getArgument(0);if(Thread.currentThread().getName().equals("mapping-editor")&&(sql.startsWith("update sku_mappings set status=")||sql.startsWith("update supplier_offers set last_unit_price_fen=")))updating.countDown();return inv.callRealMethod();}).when(jdbc).update(org.mockito.ArgumentMatchers.anyString(),org.mockito.ArgumentMatchers.any(Object[].class));
+        try(var pool=Executors.newFixedThreadPool(2)){
+            var launch=pool.submit(()->{Thread.currentThread().setName("manual-launch");receipt(f,attempt,"PAID");return null;});assertThat(checked.await(5,java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+            String path="MAPPING".equals(target)?"/api/v1/sku-mappings/"+mapping:"/api/v1/supplier-offers/"+f.offer()+"/mock-config";
+            String body="MAPPING".equals(target)?"{\"status\":\"PAUSED\",\"version\":0}":"{\"cipherPlatforms\":[],\"version\":0}";
+            var edit=pool.submit(()->{Thread.currentThread().setName("mapping-editor");return mvc.perform(patch(path).session(editor.session()).header("X-CSRF-TOKEN",editor.csrf()).contentType("application/json").content(body)).andExpect(status().isOk()).andReturn();});
+            try{assertThat(updating.await(5,java.util.concurrent.TimeUnit.SECONDS)).isTrue();assertThatThrownBy(()->edit.get(150,java.util.concurrent.TimeUnit.MILLISECONDS)).as("mapping PATCH must wait for manual PAYING commit").isInstanceOf(java.util.concurrent.TimeoutException.class);}finally{proceed.countDown();}
+            launch.get(5,java.util.concurrent.TimeUnit.SECONDS);edit.get(5,java.util.concurrent.TimeUnit.SECONDS);worker();assertThat(view(f).get("state").asText()).isEqualTo("PAID");
+        }finally{proceed.countDown();}
     }
 
 }

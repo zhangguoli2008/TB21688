@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.annotation.Isolation;
 import java.sql.*;
 import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.*;
 
 @Service
@@ -65,29 +66,35 @@ public class PaymentService {
         if(automatic&&"RULE_BASED".equals(policy.mode())&&policy.newSupplierFirstOrderManual()&&!Boolean.TRUE.equals(jdbc.queryForObject("select exists(select 1 from payment_attempts a join purchase_orders po on po.tenant_id=a.tenant_id and po.id=a.purchase_order_id where a.tenant_id=? and po.supplier_account_id=? and a.state='PAID' and a.last_verified_at is not null)",Boolean.class,p.tenant(),p.account())))return "NEW_SUPPLIER_REVIEW";
         return null;
     }
-    UUID mandate(Purchase p){return jdbc.query("select m.id from payment_mandates m join supplier_accounts a on a.tenant_id=m.tenant_id and a.id=m.supplier_account_id where m.tenant_id=? and m.supplier_account_id=? and m.status='ACTIVE' and m.expires_at>now() and m.last_verified_at is not null and m.max_single_fen>=? and a.status='ACTIVE' and m.provider='MOCK_PAYMENT' and a.provider in ('MOCK','MOCK_SUPPLIER') order by m.id limit 1",(r,n)->r.getObject(1,UUID.class),p.tenant(),p.account(),p.total()).stream().findFirst().orElse(null);}
+    UUID mandate(Purchase p,Instant at){return jdbc.query("select m.id from payment_mandates m join supplier_accounts a on a.tenant_id=m.tenant_id and a.id=m.supplier_account_id where m.tenant_id=? and m.supplier_account_id=? and m.status='ACTIVE' and m.expires_at>? and m.last_verified_at is not null and m.max_single_fen>=? and a.status='ACTIVE' and m.provider='MOCK_PAYMENT' and a.provider in ('MOCK','MOCK_SUPPLIER') order by m.id limit 1",(r,n)->r.getObject(1,UUID.class),p.tenant(),p.account(),Timestamp.from(at),p.total()).stream().findFirst().orElse(null);}
     void decision(Purchase p,String code){jdbc.update("update purchase_orders set payment_decision_code=?,updated_at=now() where tenant_id=? and id=?",code,p.tenant(),p.id());}
-    private Attempt create(Purchase p,PaymentPolicyService.Policy policy,boolean manual,UUID actor){String reason=localBlock(p,policy,!manual);if(reason==null&&!manual&&mandate(p)==null)reason="MANDATE_UNAVAILABLE";if(reason==null&&policies.used(p.tenant(),null)+p.total()>Math.min(1000000,policy.maxDailyFen()))reason="TENANT_DAILY_LIMIT_EXCEEDED";if(reason==null&&policies.used(p.tenant(),p.store())+p.total()>policy.maxStoreDailyFen())reason="STORE_DAILY_LIMIT_EXCEEDED";if(reason!=null){if(reason.equals(p.decision()))return null;decision(p,reason);audit.object(p.tenant(),actor,"MOCK_PAYMENT_BLOCKED","PURCHASE_ORDER",p.id());return null;}
-        UUID id=UUID.randomUUID(),mandate=manual?null:mandate(p);String mode=manual?"MANUAL":policy.mode();
+    private Attempt create(Purchase p,PaymentPolicyService.Policy policy,boolean manual,UUID actor){Instant at=policies.now();var date=at.atZone(ZoneOffset.UTC).toLocalDate();String reason=localBlock(p,policy,!manual);if(reason==null&&!manual&&mandate(p,at)==null)reason="MANDATE_UNAVAILABLE";if(reason==null&&policies.used(p.tenant(),null,date)+p.total()>Math.min(1000000,policy.maxDailyFen()))reason="TENANT_DAILY_LIMIT_EXCEEDED";if(reason==null&&policies.used(p.tenant(),p.store(),date)+p.total()>policy.maxStoreDailyFen())reason="STORE_DAILY_LIMIT_EXCEEDED";if(reason!=null){if(reason.equals(p.decision()))return null;decision(p,reason);audit.object(p.tenant(),actor,"MOCK_PAYMENT_BLOCKED","PURCHASE_ORDER",p.id());return null;}
+        UUID id=UUID.randomUUID(),mandate=manual?null:mandate(p,at);String mode=manual?"MANUAL":policy.mode();
         jdbc.update("insert into payment_attempts(id,tenant_id,purchase_order_id,attempt_no,mode,amount_fen,currency,mandate_id,idempotency_key,policy_version) values(?,?,?,1,?,?,?,?,?,?)",id,p.tenant(),p.id(),mode,p.total(),p.currency(),mandate,"MOCK-PAY-"+id,policy.version());
-        jdbc.update("insert into payment_budget_reservations(tenant_id,payment_attempt_id,budget_date,reserved_fen) values(?,?,(now() at time zone 'UTC')::date,?)",p.tenant(),id,p.total());decision(p,manual?"MANUAL_PAYMENT_REQUIRED":null);if(!manual)enqueue(p.tenant(),id,false);audit.object(p.tenant(),actor,"MOCK_PAYMENT_PLANNED","PAYMENT_ATTEMPT",id);return attempt(p.tenant(),id);
+        jdbc.update("insert into payment_budget_reservations(tenant_id,payment_attempt_id,budget_date,reserved_fen) values(?,?,?,?)",p.tenant(),id,java.sql.Date.valueOf(date),p.total());decision(p,manual?"MANUAL_PAYMENT_REQUIRED":null);if(!manual)enqueue(p.tenant(),id,false);audit.object(p.tenant(),actor,"MOCK_PAYMENT_PLANNED","PAYMENT_ATTEMPT",id);return attempt(p.tenant(),id);
     }
     /** Called only before a new launch, under the tenant policy lock. In-flight attempts retain their launch date. */
-    String launchBudget(Purchase p,Attempt a,PaymentPolicyService.Policy policy){
-        boolean today=Boolean.TRUE.equals(jdbc.queryForObject("select budget_date=(now() at time zone 'UTC')::date from payment_budget_reservations where tenant_id=? and payment_attempt_id=? and state='RESERVED' for update",Boolean.class,p.tenant(),a.id()));
+    String launchBudget(Purchase p,Attempt a,PaymentPolicyService.Policy policy,Instant at){
+        var date=at.atZone(ZoneOffset.UTC).toLocalDate();
+        boolean today=Boolean.TRUE.equals(jdbc.queryForObject("select budget_date=? from payment_budget_reservations where tenant_id=? and payment_attempt_id=? and state='RESERVED'",Boolean.class,java.sql.Date.valueOf(date),p.tenant(),a.id()));
         long extra=today?0:a.amountFen();
-        if(policies.used(p.tenant(),null)+extra>Math.min(1000000,policy.maxDailyFen()))return "TENANT_DAILY_LIMIT_EXCEEDED";
-        if(policies.used(p.tenant(),p.store())+extra>policy.maxStoreDailyFen())return "STORE_DAILY_LIMIT_EXCEEDED";
-        if(!today)jdbc.update("update payment_budget_reservations set budget_date=(now() at time zone 'UTC')::date where tenant_id=? and payment_attempt_id=? and state='RESERVED'",p.tenant(),a.id());
+        if(policies.used(p.tenant(),null,date)+extra>Math.min(1000000,policy.maxDailyFen()))return "TENANT_DAILY_LIMIT_EXCEEDED";
+        if(policies.used(p.tenant(),p.store(),date)+extra>policy.maxStoreDailyFen())return "STORE_DAILY_LIMIT_EXCEEDED";
+        if(!today)jdbc.update("update payment_budget_reservations set budget_date=? where tenant_id=? and payment_attempt_id=? and state='RESERVED'",java.sql.Date.valueOf(date),p.tenant(),a.id());
         return null;
+    }
+    void lockLaunchSources(Purchase p,Attempt a){
+        jdbc.query("select m.id from sku_mappings m join supplier_offers f on f.tenant_id=m.tenant_id and f.id=m.supplier_offer_id join supplier_accounts sa on sa.tenant_id=f.tenant_id and sa.id=f.supplier_account_id where m.tenant_id=? and m.id=? for no key update of m,f,sa",(r,n)->r.getObject(1,UUID.class),p.tenant(),p.mapping());
+        jdbc.query("select si.id from sales_order_items si join sales_orders o on o.tenant_id=si.tenant_id and o.id=si.sales_order_id where si.tenant_id=? and si.id=? for no key update of si,o",(r,n)->r.getObject(1,UUID.class),p.tenant(),p.item());
+        jdbc.query("select payment_attempt_id from payment_budget_reservations where tenant_id=? and payment_attempt_id=? for update",(r,n)->r.getObject(1,UUID.class),p.tenant(),a.id());
     }
     public View request(TenantPrincipal p,UUID id,String key){return tx.execute(status->{Purchase po=scoped(p,id);var policy=policies.lock(p.currentTenantId());Attempt old=latest(po.tenant(),id);frozen(old);return support.command(po.tenant(),key,"PAYMENT_REQUEST",Map.of("purchaseId",id),View.class,()->{if(old==null)create(po,policy,"MANUAL".equals(policy.mode()),p.userId());return view(purchase(po.tenant(),id));});});}
     void plan(UUID tenant,UUID purchase){tx.executeWithoutResult(status->{var policy=policies.lock(tenant);Purchase po=purchase(tenant,purchase);if("MANUAL".equals(policy.mode())||latest(tenant,purchase)!=null)return;try{stores.requireActive(tenant,po.store(),true);create(po,policy,false,null);}catch(com.smartprocure.common.ApiException ex){decision(po,ex.code());audit.object(tenant,null,"MOCK_PAYMENT_BLOCKED","PURCHASE_ORDER",purchase);}});}
     public Entry checkoutEntry(TenantPrincipal p,UUID id,String key){return tx.execute(status->{Purchase po=scoped(p,id);var policy=policies.lock(po.tenant());Attempt old=latest(po.tenant(),id);frozen(old);if(policy.globalPaused()||policy.isPaused())throw M1Support.conflict("PAYMENT_PAUSED");return support.command(po.tenant(),key,"PAYMENT_CHECKOUT",Map.of("purchaseId",id),Entry.class,()->{Attempt a=old;if(a!=null&&Set.of("PAID","FAILED").contains(a.state()))throw M1Support.conflict("PAYMENT_ALREADY_RESOLVED");if(a==null)a=create(po,policy,true,p.userId());else if(!"MANUAL".equals(a.mode())){String reason=localBlock(po,policy,false);if(reason!=null)throw M1Support.conflict(reason);jdbc.update("update payment_attempts set mode='MANUAL',mandate_id=null,version=version+1 where tenant_id=? and id=? and state='NEW'",po.tenant(),a.id());decision(po,"MANUAL_PAYMENT_REQUIRED");audit.object(po.tenant(),p.userId(),"MOCK_PAYMENT_ROUTED_MANUAL","PAYMENT_ATTEMPT",a.id());}
-            if(a==null)throw M1Support.conflict(purchase(po.tenant(),id).decision());Instant expiry=expiry(po.tenant(),a.id());if(!expiry.isAfter(Instant.now()))throw M1Support.conflict("CHECKOUT_EXPIRED");return new Entry(id,a.id(),"/payments/mock/"+a.id(),"MOCK",expiry);});});}
+            if(a==null)throw M1Support.conflict(purchase(po.tenant(),id).decision());Instant expiry=expiry(po.tenant(),a.id());if(!expiry.isAfter(policies.now()))throw M1Support.conflict("CHECKOUT_EXPIRED");return new Entry(id,a.id(),"/payments/mock/"+a.id(),"MOCK",expiry);});});}
     Instant expiry(UUID tenant,UUID attempt){return jdbc.queryForObject("select checkout_expires_at from payment_attempts where tenant_id=? and id=?",(r,n)->r.getTimestamp(1).toInstant(),tenant,attempt);}
     PaymentProviderAdapter.Request providerRequest(Purchase p,Attempt a){return new PaymentProviderAdapter.Request(p.id(),p.account(),p.external(),"MOCK-PAY-"+a.id(),a.amountFen(),a.currency());}
-    public Checkout checkout(TenantPrincipal p,UUID attempt){policies.allowed(p.currentTenantId());Attempt a=attempt(p.currentTenantId(),attempt);Purchase po=scoped(p,a.purchaseId());if(!"MANUAL".equals(a.mode()))throw M1Support.missing();frozen(a);var authority=provider.query(po.tenant(),providerRequest(po,a));if(!com.smartprocure.provider.MockPaymentAdapter.matches(providerRequest(po,a),authority))throw M1Support.conflict("PAYMENT_AUTHORITY_MISMATCH");Instant expiry=expiry(po.tenant(),attempt);var policy=policies.get(p);return new Checkout(a,po.id(),po.total(),po.currency(),authority.state(),"NEW".equals(a.state())&&expiry.isAfter(Instant.now())&&!policy.isPaused()&&!policy.globalPaused(),expiry,"MOCK");}
+    public Checkout checkout(TenantPrincipal p,UUID attempt){policies.allowed(p.currentTenantId());Attempt a=attempt(p.currentTenantId(),attempt);Purchase po=scoped(p,a.purchaseId());if(!"MANUAL".equals(a.mode()))throw M1Support.missing();frozen(a);var authority=provider.query(po.tenant(),providerRequest(po,a));if(!com.smartprocure.provider.MockPaymentAdapter.matches(providerRequest(po,a),authority))throw M1Support.conflict("PAYMENT_AUTHORITY_MISMATCH");Instant expiry=expiry(po.tenant(),attempt);var policy=policies.get(p);return new Checkout(a,po.id(),po.total(),po.currency(),authority.state(),"NEW".equals(a.state())&&expiry.isAfter(policies.now())&&!policy.isPaused()&&!policy.globalPaused(),expiry,"MOCK");}
     void enqueue(UUID tenant,UUID attempt,boolean queryOnly){jdbc.update("insert into outbox_events(tenant_id,aggregate_id,event_type,payload) values(?,?,'M3_PAYMENT',jsonb_build_object('queryOnly',?::boolean)) on conflict(tenant_id,aggregate_id) where event_type='M3_PAYMENT' do update set state=case when outbox_events.state='PROCESSING' then outbox_events.state else 'NEW' end,available_at=now(),payload=excluded.payload",tenant,attempt,queryOnly);}
     public View receipt(TenantPrincipal p,UUID attempt,String key,Receipt receipt){
         policies.allowed(p.currentTenantId());
@@ -103,19 +110,21 @@ public class PaymentService {
             Attempt current=attempt(p.currentTenantId(),attempt);
             Purchase po=scoped(p,current.purchaseId());
             frozen(current);
-            if("NEW".equals(current.state())&&!expiry(po.tenant(),attempt).isAfter(Instant.now()))throw M1Support.conflict("CHECKOUT_EXPIRED");
+            if("NEW".equals(current.state())&&!expiry(po.tenant(),attempt).isAfter(policies.now()))throw M1Support.conflict("CHECKOUT_EXPIRED");
             return support.command(po.tenant(),key,"MOCK_PAYMENT_RECEIPT",Map.of("attemptId",attempt,"outcome",receipt.outcome()),View.class,()->{
                 if("NEW".equals(current.state())){
                     var policy=policies.get(p);
                     stores.requireActive(po.tenant(),po.store(),true);
-                    jdbc.query("select si.id from sales_order_items si join sales_orders o on o.tenant_id=si.tenant_id and o.id=si.sales_order_id where si.tenant_id=? and si.id=? for no key update of si,o",(r,n)->r.getObject(1,UUID.class),po.tenant(),po.item());
+                    lockLaunchSources(po,current);
+                    Instant launchAt=policies.now();
+                    if(!expiry(po.tenant(),attempt).isAfter(launchAt))throw M1Support.conflict("CHECKOUT_EXPIRED");
                     Purchase fresh=purchase(po.tenant(),po.id());
                     String reason=localBlock(fresh,policy,false);
                     if(reason==null&&receipt.outcome()==Outcome.PAID)reason=salesAuthorityBlock(fresh,authority);
-                    if(reason==null&&receipt.outcome()==Outcome.PAID)reason=launchBudget(fresh,current,policy);
+                    if(reason==null&&receipt.outcome()==Outcome.PAID)reason=launchBudget(fresh,current,policy,launchAt);
                     if(reason!=null)throw M1Support.conflict(reason);
                     if(receipt.outcome()==Outcome.PAID){
-                        int n=jdbc.update("update payment_attempts set state='PAYING',started_at=now(),failure_code=null,version=version+1 where tenant_id=? and id=? and version=? and state='NEW'",po.tenant(),attempt,current.version());
+                        int n=jdbc.update("update payment_attempts set state='PAYING',started_at=?,failure_code=null,version=version+1 where tenant_id=? and id=? and version=? and state='NEW'",Timestamp.from(launchAt),po.tenant(),attempt,current.version());
                         if(n!=1)throw M1Support.conflict("PAYMENT_STATE_CHANGED");
                         audit.object(po.tenant(),p.userId(),"MOCK_MANUAL_PAYMENT_LAUNCH_COMMITTED","PAYMENT_ATTEMPT",attempt);
                     }
