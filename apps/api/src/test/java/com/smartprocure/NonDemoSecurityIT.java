@@ -49,4 +49,12 @@ class NonDemoSecurityIT {
                 .andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("NOT_FOUND"));
         assertThat(jdbc.queryForObject("select count(*) from inbox_events",Integer.class)).isZero();
     }
+    @Autowired com.smartprocure.provider.PaymentProviderAdapter payments;
+    @Test void paymentAdapterFailsClosedOutsideSyntheticProfiles() {
+        var request=new com.smartprocure.provider.PaymentProviderAdapter.Request(java.util.UUID.randomUUID(),java.util.UUID.randomUUID(),"MOCK-PURCHASE-UNAVAILABLE","MOCK-PAY-UNAVAILABLE",1L,"CNY");
+        for(Runnable action:java.util.List.<Runnable>of(()->payments.pay(java.util.UUID.randomUUID(),request),()->payments.query(java.util.UUID.randomUUID(),request),()->payments.simulateReceipt(java.util.UUID.randomUUID(),request,"PAID")))
+            org.assertj.core.api.Assertions.assertThatThrownBy(action::run).isInstanceOf(com.smartprocure.common.ApiException.class).extracting(e->((com.smartprocure.common.ApiException)e).code()).isEqualTo("NOT_FOUND");
+        assertThat(jdbc.queryForObject("select count(*) from mock_payment_authority",Integer.class)).isZero();
+    }
+
 }

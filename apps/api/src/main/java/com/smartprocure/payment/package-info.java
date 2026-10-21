@@ -1,2 +1,2 @@
-/** Reserved domain boundary. Business workflows are not implemented in M0. */
+/** M3 tenant-scoped Mock payment planning, durable launch, frozen recovery and reconciliation. */
 package com.smartprocure.payment;

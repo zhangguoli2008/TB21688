@@ -63,6 +63,7 @@ springdoc:
   swagger-ui:
     enabled: false
 app:
+  payment-emergency-stop: ${APP_PAYMENT_EMERGENCY_STOP:false}
   provider-mode: ${APP_PROVIDER_MODE:MOCK}
   real-platform-enabled: ${APP_REAL_PLATFORM_ENABLED:false}
   real-procurement-enabled: ${APP_REAL_PROCUREMENT_ENABLED:false}

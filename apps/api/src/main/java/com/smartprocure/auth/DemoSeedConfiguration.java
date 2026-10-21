@@ -15,6 +15,6 @@ public class DemoSeedConfiguration {
     @Bean
     @DependsOn("realChannelGuard")
     InitializingBean demoSeed(DataSource dataSource) {
-        return () -> new ResourceDatabasePopulator(new ClassPathResource("db/demo/seed.sql"), new ClassPathResource("db/demo/m1-seed.sql"), new ClassPathResource("db/demo/m2-seed.sql")).execute(dataSource);
+        return () -> new ResourceDatabasePopulator(new ClassPathResource("db/demo/seed.sql"), new ClassPathResource("db/demo/m1-seed.sql"), new ClassPathResource("db/demo/m2-seed.sql"), new ClassPathResource("db/demo/m3-seed.sql")).execute(dataSource);
     }
 }

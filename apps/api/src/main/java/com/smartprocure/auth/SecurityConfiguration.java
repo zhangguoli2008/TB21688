@@ -48,7 +48,15 @@ public class SecurityConfiguration {
                             .requestMatchers(HttpMethod.GET,"/api/v1/procurement-policies/*","/api/v1/purchase-intents","/api/v1/purchase-intents/*","/api/v1/purchases","/api/v1/purchases/*").hasAuthority("procurement.read")
                             .requestMatchers(HttpMethod.POST,"/api/v1/purchase-intents","/api/v1/purchase-intents/evaluate").hasAuthority("procurement.manage")
                             .requestMatchers(HttpMethod.PUT,"/api/v1/procurement-policy","/api/v1/procurement-policies/*").hasAuthority("procurement.manage")
+                            .requestMatchers(HttpMethod.GET,"/api/v1/payment-mandates","/api/v1/payment-queue","/api/v1/payment-reconciliations","/api/v1/purchases/*/payment-status").hasAuthority("payments.read")
+                            .requestMatchers(HttpMethod.GET,"/api/v1/payment-policy").hasAuthority("paymentPolicy.manage")
                             .requestMatchers(HttpMethod.PUT,"/api/v1/payment-policy").hasAuthority("paymentPolicy.manage")
+                            .requestMatchers(HttpMethod.PATCH,"/api/v1/payment-mandates/*/mock-state").hasAuthority("paymentPolicy.manage")
+                            .requestMatchers(HttpMethod.GET,"/api/v1/payment-attempts/*/mock-checkout").hasAuthority("payments.manual")
+                            .requestMatchers(HttpMethod.POST,"/api/v1/purchases/*/checkout-entry","/api/v1/mock/payment-attempts/*/receipt").hasAuthority("payments.manual")
+                            .requestMatchers(HttpMethod.POST,"/api/v1/purchases/*/payments","/api/v1/purchases/*/payment-reconcile").hasAuthority("payments.manage")
+                            .requestMatchers(HttpMethod.GET,"/api/v1/mock/purchases/*/payment-config").hasAuthority("payments.manage")
+                            .requestMatchers(HttpMethod.PATCH,"/api/v1/mock/purchases/*/payment-config").hasAuthority("payments.manage")
                             .anyRequest().authenticated();
                 })
                 .addFilterBefore(new SessionIdentityFilter(identities, guard, errors, audit), CsrfFilter.class);
