@@ -1,6 +1,6 @@
 # 智采云 SmartProcure
 
-当前交付：**M3 付款核心 Mock 演示，功能及本地/Chrome验收完成**。在已验收 M2 映射、报价和异步采购之上，增加 MANUAL/AUTO/RULE_BASED、Mock签约、独立付款尝试、并发预算与未知结果只读对账。自动化和验收证据见 `docs/30_M3实施计划与验收.md`；M2 已验收记录保留在 `docs/29_M2实施计划与验收.md`。所有付款结果均为合成 Mock；真实平台通道关闭，物流尚未实现。
+当前交付：**M4 物流、售后协调与经营数据，全部为合成 Mock**。在已验收 M3 基础上增加多包裹与运单修订、权威确认后回填、方向独立的退款记录、经营投影、通知与操作时间轴。实际验收及范围边界见 [docs/31](docs/31_M4实施计划与验收.md)；M2/M3 历史证据分别保留在 docs/29、docs/30。真实电商、采购与支付通道继续关闭。
 
 ## 快速启动（Docker）
 
@@ -49,12 +49,12 @@ npm run dev
 
 ## 演示数据与安全边界
 
-- Flyway V1/V2 保持不变，V3 增量管理 M2 映射、报价、策略和采购约束，禁止 `ddl-auto=update`。支付及履约草案表存在不代表业务开放。
-- 仅 `demo` / `test` 配置加载独立种子：2租户、3合成身份、每租户2店铺和3个合成货源；客服按 member_store_access 只读 A 的第一家店及其采购。重复初始化不重置店铺/货源配置，也不预建已确认映射、采购或付款；销售单由 Mock 场景生成，采购单由后续已确认映射与规则决定，不含消费者隐私。
+- Flyway V1～V4 保持不变，V5 增量管理 Mock 物流/售后，V6 增量管理活动、通知和经营投影；禁止 `ddl-auto=update`。业务能力仅限已声明的 Mock 范围。
+- 仅 `demo` / `test` 配置加载独立种子：2租户、3合成身份、每租户2店铺和3个合成货源；客服按 member_store_access 读取 A 的第一家店业务并协调售后；模拟权威事件及报表仅限店主。重复初始化不重置店铺/货源配置，也不预建已确认映射、采购或付款；销售单由 Mock 场景生成，采购单由后续已确认映射与规则决定，不含消费者隐私。
 - `SPSESSION` 为 HttpOnly/SameSite cookie，30分钟失效；每请求查验 ACTIVE 用户、成员、角色与租户。普通请求不能通过 Header/query/body 切换租户。会话仅本地单实例内存，生产认证、共享会话和正式安全准入尚未完成。
 - 演示写请求必须先 `GET /api/v1/auth/csrf`，携带返回的 `X-CSRF-TOKEN`；登录后重新获取。退出立即撤销；前端不保存认证 token 到 localStorage。
 - `APP_PROVIDER_MODE=MOCK`，`APP_REAL_PLATFORM_ENABLED`、`APP_REAL_PROCUREMENT_ENABLED`、`APP_REAL_PAYMENT_ENABLED` 默认 false；启用真实模式会失败关闭。`prod` 与演示配置组合被拒绝，不存在真实 Adapter、支付脚本或第三方密码收集。
-- M0/M1 与 M2 映射、Mock报价、策略、采购意图/采购单以 `contracts/openapi.yaml` 为源；支付/物流等其余路径为未来设计，未实现。
+- M0～M4 的实现以 `contracts/openapi.yaml` v0.5.0 为源；来源事件、采购、付款、物流与售后分别建模，尚无真实平台 Adapter。
 
 ## M1 合成事件演示
 
@@ -98,6 +98,16 @@ M3_BASE_URL=http://localhost:8080/api/v1 .local/venv/bin/python scripts/demo-m3-
 
 UNKNOWN或MANUAL_RECONCILIATION只能核实原attempt，禁止再次付款或返回人工入口；明确FAILED在M3也保留为终态，不提供新attempt重付。自动查单至多5次，后转人工冻结；显式只读对账仍可核实同一attempt。所有已付金额均指Mock权威流水，未接入真实平台资金。
 
+## M4 履约与经营 Mock 演示
+
+1. 复用 M3 已核验 PAID 的合成采购，从采购详情生成数量受限的供应商发货事件；每个事件独立创建包裹，可在物流中心按订单/采购/店铺筛选。
+2. 只有后台查询下游 Mock 权威状态与当前运单版本完全匹配，才显示 ACKED。5xx 经有限重试后保留阻塞，可修正 Mock 配置并申请补偿；运单修订保留历史版本及回执，不重复累加履约量。
+3. 从销售单生成取消、仅退款或退货退款事件。受影响子项立即冻结；来源退款与供应商退款分别核验和记账，退货已寄出不等于退款。支付 UNKNOWN 仍只查询原付款尝试。
+4. 报表按订单创建区间归集最新投影的累计收付。销售实收、采购实付、预计利润、两个方向退款与未对账项目分别展示；净现金流不等于净利润，完整成本缺失时实际净利润为空。汇总 asOf 是最早投影核验时间，各订单可能含更晚更新。
+5. 站内通知可筛选并标记已读，订单时间轴可跳转包裹和售后。客服仅已分配店铺，禁止模拟来源/供应商权威事件；租户从服务端会话确认。
+
+同子项剩余数量沿用 M2 单一不可变履约切片；有售后冻结时返回 `AFTERSALE_ALLOCATION_REVIEW` 转人工，不支持自动切出剩余量采购。没有真实物流回填、真实退款、生产身份或生产准入。`scripts/smoke-m4.py` 是可重复的专用本地 Mock HTTP 验收，结束会暂停本次映射并恢复安全付款策略，保留合成历史。
+
 ## 构建与测试
 
 单元测试与 API jar：
@@ -133,17 +143,19 @@ python3 -m venv .local/venv
 .local/venv/bin/openapi-spec-validator contracts/openapi.yaml
 .local/venv/bin/python apps/web/scripts/generate-m2-contract.py --check
 .local/venv/bin/python apps/web/scripts/generate-m3-contract.py --check
+.local/venv/bin/python apps/web/scripts/generate-m4-contract.py --check
 python3 scripts/check-safety.py
 .local/venv/bin/python scripts/smoke-m0.py
 .local/venv/bin/python scripts/smoke-m1.py
 .local/venv/bin/python scripts/smoke-m2.py
 .local/venv/bin/python scripts/smoke-m3.py
+.local/venv/bin/python scripts/smoke-m4.py
 M0_REQUIRE_HEALTHY=1 M0_BASE_URL=http://localhost:4173/api/v1 .local/venv/bin/python scripts/smoke-m0.py
 ```
 
 最后一条要求完整 Compose 的所有依赖为 UP，并验证 Nginx 代理、会话及CSRF。基础扫描只检查常见密钥模式和意外真实电商 URL，配合 npm audit；不代表生产安全审计或完整 Java 漏洞扫描。
 
-CI 位于 `.github/workflows/ci.yml`，含后端单元/PG集成、前端 lint/typecheck/test/build/audit、合同及生成DTO一致性、基础安全，以及 Compose 两次启动后的 M0/M1/M2 HTTP 验收。M2 结果以 [docs/29](docs/29_M2实施计划与验收.md) 的真实执行记录为准。M1历史验收后端62/62、前端49/49，当前M1交付提交4e5e863的[真实GitHub Actions](https://github.com/zhangguoli2008/TB21688/actions/runs/39540075859)四job通过。M0/M1历史证据仍保存在docs/27和docs/28，不能代替M2验收。
+CI 位于 `.github/workflows/ci.yml`，含后端单元/PG集成、前端 lint/typecheck/test/build/audit、合同及生成DTO一致性、基础安全，以及 Compose API 重启前及重启后 Nginx 代理的 M0～M4 HTTP 验收（每轮50项）。也可通过 workflow_dispatch 对指定分支显式运行，避免把未触发的 push 当成 CI 成功。M2 结果以 [docs/29](docs/29_M2实施计划与验收.md) 的真实执行记录为准。M1历史验收后端62/62、前端49/49，当前M1交付提交4e5e863的[真实GitHub Actions](https://github.com/zhangguoli2008/TB21688/actions/runs/39540075859)四job通过。M0/M1历史证据仍保存在docs/27和docs/28，不能代替M2验收。
 
 Spring Boot **3.5.16** 遵循既有3.x基线；该分支开源支持已结束，生产前需要明确升级或商业支持决策，见 [Spring 官方支持记录](https://api.spring.io/projects/spring-boot/generations/3.5.x)。本项目目前不满足正式上线准入。
 
