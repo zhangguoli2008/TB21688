@@ -80,6 +80,24 @@ M1 原验收记录保留在 `docs/28_M1实施计划与验收.md`；M2 增量覆�
 
 `scripts/smoke-m2.py` 只用于专用本地演示环境：每次创建独立合成店铺/销售单，临时提高 Mock 租户采购限额并恢复；暂停本次映射、恢复货源配置，保留合成历史便于复核。可指定 `M2_BASE_URL=http://localhost:4173/api/v1`。Worker 可用 `APP_MOCK_WORKER_ENABLED=false` 总体关闭；测试通过专用 schema 和关闭调度控制时序，不拿异步等待替代断言。
 
+## M3 可重复付款模拟（实施中，验收记录见 docs/30）
+
+M3仅运行本地Mock：PaymentPolicy的MANUAL/AUTO/RULE_BASED、签约状态、付款尝试/预算、异步Worker和只读对账。初始策略为MANUAL且暂停，签约PENDING；真实通道仍关闭。租户停付作用于所有店铺，独立平台总停付由`APP_PAYMENT_EMERGENCY_STOP=true`或全局feature flag `payment_emergency_stop`控制；均不会阻止在途只读查询。本轮不扩充平台管理员控制台。
+
+三个脚本通过HTTP调用合成适配器，无浏览器收银台操作、密码、验证码或真实付款。请仅在专用本地演示运行；默认API8080、Web4173，可按本机端口调整：
+
+```bash
+M3_BASE_URL=http://localhost:8080/api/v1 .local/venv/bin/python scripts/demo-m3-auto.py
+M3_BASE_URL=http://localhost:8080/api/v1 .local/venv/bin/python scripts/demo-m3-manual.py
+M3_BASE_URL=http://localhost:8080/api/v1 .local/venv/bin/python scripts/demo-m3-unknown.py
+```
+
+自动脚本启用有效Mock签约并等待权威已付；人工脚本先证明UNPAID回执保持待付款，再模拟PAID权威回执并等待Worker复核；未知脚本配置持续查单超时，验证人工/自动入口均拒绝，再查询同一attempt。输出`runtimeMode=MOCK`和合成单据ID，人工脚本不是对真实付款页的自动点击。可设置`M3_WEB_URL`调整输出的本地详情链接。
+
+脚本新建独立店铺/销售单和已审核映射，保留历史供复核；收尾暂停本次映射、恢复采购策略，并将付款策略设回MANUAL+暂停，避免历史待付数据被后台自动处理。原PENDING签约会保守恢复为REVOKED（Mock更新接口仅允许ACTIVE/EXPIRED/REVOKED）；其他被修改签约恢复原状态/上限，ACTIVE会重新获得合成有效期。不要把它们用于生产或用户正在操作的共享演示环境。
+
+UNKNOWN或MANUAL_RECONCILIATION只能核实原attempt，禁止再次付款或返回人工入口；明确FAILED在M3也保留为终态，不提供新attempt重付。自动查单至多5次，后转人工冻结；显式只读对账仍可核实同一attempt。所有已付金额均指Mock权威流水，未接入真实平台资金。
+
 ## 构建与测试
 
 单元测试与 API jar：
@@ -114,10 +132,12 @@ python3 -m venv .local/venv
 .local/venv/bin/pip install -r scripts/requirements.txt
 .local/venv/bin/openapi-spec-validator contracts/openapi.yaml
 .local/venv/bin/python apps/web/scripts/generate-m2-contract.py --check
+.local/venv/bin/python apps/web/scripts/generate-m3-contract.py --check
 python3 scripts/check-safety.py
 .local/venv/bin/python scripts/smoke-m0.py
 .local/venv/bin/python scripts/smoke-m1.py
 .local/venv/bin/python scripts/smoke-m2.py
+.local/venv/bin/python scripts/smoke-m3.py
 M0_REQUIRE_HEALTHY=1 M0_BASE_URL=http://localhost:4173/api/v1 .local/venv/bin/python scripts/smoke-m0.py
 ```
 
