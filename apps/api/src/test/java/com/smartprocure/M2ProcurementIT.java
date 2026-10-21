@@ -222,6 +222,15 @@ class M2ProcurementIT {
         if(result.getResponse().getStatus()==409)assertThat(mapper.readTree(result.getResponse().getContentAsString()).get("code").asText()).isEqualTo("DAILY_LIMIT_EXCEEDED");
         return result.getResponse().getStatus();
     }
+    @Test void expiredApprovedSnapshotBlocksBeforeAnySupplierCreate() throws Exception {
+        Fixture f=fixture("NORMAL");JsonNode evaluation=evaluate(f);JsonNode intent=create(f,evaluation,UUID.randomUUID().toString());
+        String expired=java.time.Instant.now().minusSeconds(1).toString();
+        jdbc.update("update purchase_intents set quote_snapshot=jsonb_set(quote_snapshot,'{expiresAt}',to_jsonb(?::text)),quote_expires_at=?::timestamptz where tenant_id=? and id=?",expired,expired,A,UUID.fromString(intent.get("id").asText()));
+        procure();assertThat(state(f.item())).isEqualTo("REVIEW_REQUIRED");
+        assertThat(jdbc.queryForObject("select failure_code from purchase_intents where tenant_id=? and sales_order_item_id=?",String.class,A,f.item())).isEqualTo("QUOTE_EXPIRED");
+        assertThat(jdbc.queryForObject("select count(*) from mock_purchase_authority where tenant_id=? and offer_id=?",Integer.class,A,f.offer())).isZero();
+        assertThat(jdbc.queryForObject("select stock_qty from supplier_offers where tenant_id=? and id=?",Integer.class,A,f.offer())).isEqualTo(100);
+    }
     @Test void ownerCanReadBoundedProcurementListsAndCannotReadAnotherTenantId() throws Exception {
         Session a=login("OWNER_A");
         mvc.perform(get("/api/v1/purchase-intents").session(a.session())).andExpect(status().isOk()).andExpect(jsonPath("$.data.items").isArray());
