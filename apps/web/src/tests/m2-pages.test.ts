@@ -83,3 +83,43 @@ describe('M2 quote and policy interactions',()=>{
   const {wrapper}=await setup(PurchasesPage,'/purchases');expect(wrapper.find('[aria-busy="true"]').exists()).toBe(true);expect(wrapper.find('[data-testid="purchases-empty"]').exists()).toBe(false);finish(list([]));await flushPromises();expect(wrapper.find('[data-testid="purchases-empty"]').exists()).toBe(true);wrapper.unmount();
  });
 });
+
+describe('M2 context changes during pending requests',()=>{
+ const otherItem='50000000-0000-0000-0000-000000000002';
+ const otherStore='20000000-0000-0000-0000-000000000002';
+ it('discards an allowed preview from the previous item and store after query navigation',async()=>{
+  let finish!:(value:Response)=>void;const evaluated:string[]=[];
+  vi.stubGlobal('fetch',vi.fn(async(path:string,options:RequestInit)=>{
+   if(path.endsWith('/evaluate')){const body=JSON.parse(options.body as string);evaluated.push(body.salesOrderItemId);if(evaluated.length===1)return new Promise<Response>(resolve=>{finish=resolve;});return json({...evaluation,salesOrderItemId:otherItem,storeId:otherStore,selectedQuote:{...evaluation.selectedQuote,storeId:otherStore}});}
+   return response(path);
+  }));
+  const {wrapper,router}=await setup(CatalogPage,`/catalog/sourcing?storeId=${store.id}&itemId=${itemId}`);await flushPromises();await wrapper.findAll('form').find(form=>form.find('[name="salesOrderItemId"]').exists())!.trigger('submit');await flushPromises();
+  await router.push(`/catalog/sourcing?storeId=${otherStore}&itemId=${otherItem}`);await flushPromises();finish(json(evaluation));await flushPromises();
+  expect(wrapper.get<HTMLInputElement>('[name="salesOrderItemId"]').element.value).toBe(otherItem);expect(wrapper.text()).not.toContain('规则允许');expect(wrapper.find('[data-testid="create-intent"]').exists()).toBe(false);expect(wrapper.get('[data-testid="evaluate-item"]').attributes('disabled')).toBeUndefined();
+  await wrapper.findAll('form').find(form=>form.find('[name="salesOrderItemId"]').exists())!.trigger('submit');await flushPromises();expect(evaluated).toEqual([itemId,otherItem]);expect(wrapper.get('[data-testid="create-intent"]').attributes('disabled')).toBeUndefined();wrapper.unmount();
+ });
+ it('discards pending intent results after switching the visible item',async()=>{
+  let finish!:(value:Response)=>void;
+  vi.stubGlobal('fetch',vi.fn(async(path:string,options:RequestInit)=>{if(path.endsWith('/evaluate'))return json(evaluation);if(path==='/api/v1/purchase-intents'&&options.method==='POST')return new Promise<Response>(resolve=>{finish=resolve;});return response(path);}));
+  const {wrapper,router}=await setup(CatalogPage,`/catalog/sourcing?storeId=${store.id}&itemId=${itemId}`);await flushPromises();await wrapper.findAll('form').find(form=>form.find('[name="salesOrderItemId"]').exists())!.trigger('submit');await flushPromises();await wrapper.get('[data-testid="create-intent"]').trigger('click');await wrapper.get('[data-testid="confirm-intent"]').trigger('click');await flushPromises();
+  await router.push(`/catalog/sourcing?storeId=${otherStore}&itemId=${otherItem}`);await flushPromises();finish(json(intent));await flushPromises();expect(wrapper.text()).not.toContain('已接受 Mock 采购意图');expect(wrapper.find('[data-testid="create-intent"]').exists()).toBe(false);expect(wrapper.get('[data-testid="evaluate-item"]').attributes('disabled')).toBeUndefined();wrapper.unmount();
+ });
+ it('does not overwrite the new store policy with an old pending save response',async()=>{
+  let finish!:(value:Response)=>void;
+  vi.stubGlobal('fetch',vi.fn(async(path:string,options:RequestInit)=>{if(options.method==='PUT')return new Promise<Response>(resolve=>{finish=resolve;});if(path.includes(`/procurement-policies/${otherStore}`))return json({...policy,maxSingleFen:22222,version:2});return response(path);}));
+  const {wrapper,router}=await setup(CatalogPage,`/catalog/sourcing?storeId=${store.id}&itemId=${itemId}`);await flushPromises();await wrapper.get('.policy-editor .panel-heading select').setValue('store');await flushPromises();await wrapper.get('[name="maxSingleFen"]').setValue('15000');await wrapper.findAll('form').find(form=>form.find('[name="maxSingleFen"]').exists())!.trigger('submit');await wrapper.findAll('button').find(button=>button.text()==='确认保存')!.trigger('click');await flushPromises();
+  await router.push(`/catalog/sourcing?storeId=${otherStore}&itemId=${otherItem}`);await flushPromises();finish(json({...policy,maxSingleFen:15000,version:1}));await flushPromises();expect(wrapper.get<HTMLInputElement>('[name="maxSingleFen"]').element.value).toBe('22222');expect(wrapper.text()).not.toContain('Mock 采购规则已保存');expect(wrapper.text()).toContain('保存规则（版本 2）');expect(wrapper.get('[name="maxSingleFen"]').attributes('disabled')).toBeUndefined();wrapper.unmount();
+ });
+ it('does not reopen an old mapping editor when its creation finishes after navigation',async()=>{
+  let finish!:(value:Response)=>void;
+  vi.stubGlobal('fetch',vi.fn(async(path:string,options:RequestInit)=>{if(path==='/api/v1/sku-mappings'&&options.method==='POST')return new Promise<Response>(resolve=>{finish=resolve;});if(path.includes('/sku-mappings'))return list([]);return response(path);}));
+  const {wrapper,router}=await setup(CatalogPage,`/catalog/sourcing?storeId=${store.id}&salesSkuId=MOCK-SKU-BLUE`);await flushPromises();await wrapper.findAll('button').find(button=>button.text()==='查看 / 对照')!.trigger('click');await wrapper.findAll('form').find(form=>form.text().includes('供应商优先级'))!.trigger('submit');await flushPromises();await router.push(`/catalog/sourcing?storeId=${otherStore}&salesSkuId=MOCK-SKU-WHITE`);await flushPromises();finish(json(mapping));await flushPromises();expect(wrapper.find('[data-testid="confirm-mapping"]').exists()).toBe(false);expect(wrapper.text()).not.toContain('已建立待审映射');wrapper.unmount();
+ });
+});
+
+describe('M2 draft context safety',()=>{
+ it('invalidates a completed item preview immediately when the visible store selector changes before applying filters',async()=>{
+  vi.stubGlobal('fetch',vi.fn(async(path:string)=>path.endsWith('/evaluate')?json(evaluation):response(path)));
+  const {wrapper}=await setup(CatalogPage,`/catalog/sourcing?storeId=${store.id}&itemId=${itemId}`);await flushPromises();await wrapper.findAll('form').find(form=>form.find('[name="salesOrderItemId"]').exists())!.trigger('submit');await flushPromises();expect(wrapper.get('[data-testid="create-intent"]').attributes('disabled')).toBeUndefined();await wrapper.get('.filter-form select').setValue('');await flushPromises();expect(wrapper.find('[data-testid="create-intent"]').exists()).toBe(false);expect(wrapper.text()).not.toContain('规则允许');wrapper.unmount();
+ });
+});

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue';
+import { computed, onScopeDispose, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Refresh, Goods } from '@element-plus/icons-vue';
 import { api, asApiError, type ApiError } from '../api/client';
@@ -16,11 +16,13 @@ const stores=useRemote(()=>api.listStores(100,0));const mappings=useRemote(()=>a
 const context=reactive({storeId:'',salesSkuId:'',itemId:'',status:''});
 const selected=ref<Offer|null>(null);const review=ref<Mapping|null>(null);const acknowledged=ref(false);const priority=ref(1);const pending=ref(false);const mutationError=ref<ApiError|null>(null);const notice=ref('');
 const quote=ref<Quote|null>(null);const quoteQty=ref(1);const quotePending=ref(false);const quoteError=ref<ApiError|null>(null);const config=ref<OfferConfig|null>(null);const configConfirm=ref(false);
-let signature='';let key='';
+let signature='';let key='';let revision=0;
+onScopeDispose(()=>{revision++;});
 const selectedMapping=computed(()=>mappings.data.value?.items.find(m=>m.supplierOfferId===selected.value?.id));
 const itemId=computed(()=>typeof route.query.itemId==='string'&&uuid(route.query.itemId)?route.query.itemId:'');
-function clearSelection(){selected.value=null;review.value=null;quote.value=null;config.value=null;acknowledged.value=false;mutationError.value=null;quoteError.value=null;}
+function clearSelection(){revision++;pending.value=false;quotePending.value=false;configConfirm.value=false;selected.value=null;review.value=null;quote.value=null;config.value=null;acknowledged.value=false;mutationError.value=null;quoteError.value=null;}
 watch(()=>route.fullPath,()=>{context.storeId=filters.value.storeId??'';context.salesSkuId=filters.value.salesSkuId??'';context.status=filters.value.status??'';context.itemId=itemId.value;clearSelection();void mappings.load();void offers.load();},{immediate:true});
+watch(()=>[context.storeId,context.salesSkuId,context.itemId],clearSelection,{flush:'sync'});
 void stores.load();
 function query(){return {...m2Query(filters.value,['storeId','salesSkuId','status']),...(itemId.value?{itemId:itemId.value}:{})};}
 function apply(){const next=parseM2Filters({...context,limit:String(filters.value.limit),offset:'0'});void router.push({path:route.path,query:{...m2Query(next,['storeId','salesSkuId','status']),...(uuid(context.itemId)?{itemId:context.itemId}:{})}});}
@@ -28,10 +30,48 @@ function paginate(offset:number,limit:number){void router.push({path:route.path,
 async function reload(){notice.value='';clearSelection();await Promise.allSettled([mappings.load(),offers.load()]);}
 function selectOffer(offer:Offer){selected.value=offer;review.value=null;acknowledged.value=false;quote.value=null;quoteError.value=null;mutationError.value=null;const {version,unitPriceFen,shippingFen,stock,minimumQty,cipherPlatforms,regions,quoteTtlSeconds,fault}=offer;config.value={version,unitPriceFen,shippingFen,stock,minimumQty,cipherPlatforms:[...cipherPlatforms],regions:[...regions],quoteTtlSeconds,fault};}
 function openReview(mapping:Mapping){review.value=mapping;priority.value=mapping.priority;acknowledged.value=false;selected.value=offers.data.value?.items.find(o=>o.id===mapping.supplierOfferId)??null;mutationError.value=null;}
-async function createMapping(){if(pending.value||!selected.value||!session.can('sourcing.manage'))return;pending.value=true;notice.value='';mutationError.value=null;const body={storeId:context.storeId,salesSkuId:context.salesSkuId,supplierOfferId:selected.value.id,priority:priority.value};const next=JSON.stringify(body);if(signature!==next){signature=next;key=globalThis.crypto.randomUUID();}try{const result=await api.createMapping(body,key);await mappings.load();openReview(result);notice.value='已建立待审映射，请核验后再确认。';}catch(cause){mutationError.value=asApiError(cause);}finally{pending.value=false;}}
-async function updateMapping(status:Mapping['status']){if(pending.value||!review.value||!session.can('sourcing.manage')||(status==='CONFIRMED'&&!acknowledged.value))return;pending.value=true;notice.value='';mutationError.value=null;try{review.value=await api.updateMapping(review.value.id,{version:review.value.version,status,priority:priority.value,reviewAcknowledged:status==='CONFIRMED'&&acknowledged.value});await mappings.load();notice.value='Mock 映射版本已更新，已创建采购意图保留原快照。';acknowledged.value=false;}catch(cause){mutationError.value=asApiError(cause);}finally{pending.value=false;}}
-async function getQuote(){if(quotePending.value||!selected.value)return;quotePending.value=true;quote.value=null;quoteError.value=null;try{quote.value=await api.quoteOffer(selected.value.id,{storeId:context.storeId,qty:quoteQty.value});}catch(cause){quoteError.value=asApiError(cause);}finally{quotePending.value=false;}}
-async function saveConfig(){if(pending.value||!selected.value||!config.value)return;pending.value=true;notice.value='';mutationError.value=null;try{const updated=await api.updateOffer(selected.value.id,config.value);await offers.load();selectOffer(updated);configConfirm.value=false;notice.value='Mock 货源配置已更新，请重新报价及预览规则。';}catch(cause){mutationError.value=asApiError(cause);}finally{pending.value=false;}}
+async function createMapping(){
+  if(pending.value||!selected.value||!session.can('sourcing.manage'))return;
+  const current=revision;pending.value=true;notice.value='';mutationError.value=null;
+  const body={storeId:context.storeId,salesSkuId:context.salesSkuId,supplierOfferId:selected.value.id,priority:priority.value};
+  const next=JSON.stringify(body);if(signature!==next){signature=next;key=globalThis.crypto.randomUUID();}
+  try{
+    const result=await api.createMapping(body,key);if(current!==revision)return;
+    await mappings.load();if(current!==revision)return;
+    openReview(result);notice.value='已建立待审映射，请核验后再确认。';
+  }catch(cause){if(current===revision)mutationError.value=asApiError(cause);}
+  finally{if(current===revision)pending.value=false;}
+}
+async function updateMapping(status:Mapping['status']){
+  if(pending.value||!review.value||!session.can('sourcing.manage')||(status==='CONFIRMED'&&!acknowledged.value))return;
+  const current=revision;pending.value=true;notice.value='';mutationError.value=null;
+  const mappingId=review.value.id;const body={version:review.value.version,status,priority:priority.value,reviewAcknowledged:status==='CONFIRMED'&&acknowledged.value};
+  try{
+    const result=await api.updateMapping(mappingId,body);if(current!==revision)return;
+    review.value=result;await mappings.load();if(current!==revision)return;
+    notice.value='Mock 映射版本已更新，已创建采购意图保留原快照。';acknowledged.value=false;
+  }catch(cause){if(current===revision)mutationError.value=asApiError(cause);}
+  finally{if(current===revision)pending.value=false;}
+}
+async function getQuote(){
+  if(quotePending.value||pending.value||!selected.value)return;
+  const current=revision;const offerId=selected.value.id;const body={storeId:context.storeId,qty:quoteQty.value};
+  quotePending.value=true;quote.value=null;quoteError.value=null;
+  try{const result=await api.quoteOffer(offerId,body);if(current===revision)quote.value=result;}
+  catch(cause){if(current===revision)quoteError.value=asApiError(cause);}
+  finally{if(current===revision)quotePending.value=false;}
+}
+async function saveConfig(){
+  if(pending.value||!selected.value||!config.value)return;
+  const current=revision;const offerId=selected.value.id;const body={...config.value};
+  pending.value=true;notice.value='';mutationError.value=null;
+  try{
+    const updated=await api.updateOffer(offerId,body);if(current!==revision)return;
+    await offers.load();if(current!==revision)return;
+    selectOffer(updated);configConfirm.value=false;notice.value='Mock 货源配置已更新，请重新报价及预览规则。';
+  }catch(cause){if(current===revision)mutationError.value=asApiError(cause);}
+  finally{if(current===revision)pending.value=false;}
+}
 </script>
 <template>
   <div>
@@ -43,7 +83,7 @@ async function saveConfig(){if(pending.value||!selected.value||!config.value)ret
     <section v-else class="panel table-panel"><div class="section-title"><h2>Mock 候选供应商</h2><p>兼容 SKU 仅为合成数据提示，需逐项人工核验后确认。</p></div><div v-if="offers.loading.value" class="data-state" role="status">正在加载合成候选…</div><ErrorPanel v-else-if="offers.error.value" :error="offers.error.value" title="候选货源读取失败"><el-button @click="offers.load">重试</el-button></ErrorPanel><p v-else-if="!offers.data.value?.items.length" class="data-state">暂无合成候选货源。</p><div v-else class="table-scroll"><table class="data-table"><thead><tr><th>供应商 / SKU</th><th>规格 / 兼容销售 SKU</th><th>单价 / 运费（CNY）</th><th>库存 / 起订</th><th>能力 / 模拟故障</th><th>操作</th></tr></thead><tbody><tr v-for="offer in offers.data.value.items" :key="offer.id"><td>{{ offer.displayName }}<small class="mono">{{ offer.externalSkuId }}</small></td><td>{{ offer.specification }}<small class="mono">{{ offer.compatibleSalesSkuId }}</small></td><td class="money-cell">{{ formatFen(offer.unitPriceFen) }}<small>运费 {{ formatFen(offer.shippingFen) }}</small></td><td>{{ offer.stock }} / {{ offer.minimumQty }}</td><td>{{ offer.cipherPlatforms.length?offer.cipherPlatforms.join('、'):'无密文平台能力' }}<small>{{ offer.regions.join('、')||'无可售区域' }} · {{ faultNames[offer.fault] }}</small></td><td><el-button link type="primary" :disabled="pending||quotePending" @click="selectOffer(offer)">查看 / 对照</el-button></td></tr></tbody></table></div><PagePagination v-if="offers.data.value" :total="offers.data.value.total" :limit="filters.limit" :offset="filters.offset" :loading="offers.loading.value||pending" @change="paginate" /></section>
     <section v-if="selected||review" class="panel editor-panel"><div class="panel-heading"><div><h2>销售 SKU 与供应商规格对照</h2><p>品牌、型号、颜色、尺寸、材质、件数、包装、区域、发货时效与图片需人工核验；缺失属性不得推断一致。</p></div><el-button text :disabled="pending" @click="clearSelection">关闭</el-button></div><div class="sku-compare"><div><span>销售侧</span><strong class="mono">{{ (review?.salesSkuId??context.salesSkuId)||'请先选择销售 SKU' }}</strong><p>以销售订单及商品原始规格为准。此演示不提供图片或完整商品属性。</p></div><div><span>供应侧 · Mock</span><strong>{{ selected?.displayName??review?.supplierName }}</strong><p>{{ selected?.specification??review?.specification }}</p><small class="mono">{{ selected?.externalSkuId??review?.supplierOfferId }}</small></div></div><form class="inline-form" @submit.prevent="createMapping"><label>供应商优先级<input v-model.number="priority" type="number" min="0" max="10000" step="1" :disabled="pending" required /></label><el-button v-if="!review&&session.can('sourcing.manage')" type="primary" native-type="submit" :disabled="pending||!uuid(context.storeId)||!context.salesSkuId||!!selectedMapping" :loading="pending">{{ selectedMapping?'此候选已有映射':'建立待审核映射' }}</el-button></form><p v-if="selectedMapping&&!review" class="help-text">已存在 {{ stateNames[selectedMapping.status] }} 映射，版本 {{ selectedMapping.version }}。<el-button link type="primary" @click="openReview(selectedMapping)">查看映射审核</el-button></p><template v-if="review"><p class="help-text">当前 {{ stateNames[review.status] }} · 版本 {{ review.version }} · 确认时间 {{ shanghaiTime(review.confirmedAt) }}</p><label class="checkbox-label review-ack"><input v-model="acknowledged" name="reviewAcknowledged" type="checkbox" :disabled="pending" />我已核验品牌、型号、颜色、尺寸、材质、件数、包装、图片及履约能力一致，并完成首次供应商人工审核。</label><div class="inline-actions"><el-button data-testid="confirm-mapping" type="primary" :disabled="!acknowledged||pending" :loading="pending" @click="updateMapping('CONFIRMED')">确认映射 / 更新优先级</el-button><el-button :disabled="pending||review.status==='PAUSED'" @click="updateMapping('PAUSED')">暂停映射</el-button><el-button :disabled="pending||review.status==='REVIEW'" @click="updateMapping('REVIEW')">转回待审核</el-button></div></template></section>
     <section v-if="selected&&sourcing" class="panel editor-panel"><div class="panel-heading"><div><h2>Mock 报价快照与故障配置</h2><p>报价包括商品价 × 数量 + 运费 + 费用，有效期与密文 / 地区能力由服务端核验。</p></div><el-tag type="warning" effect="plain">合成数据</el-tag></div><form class="inline-form" @submit.prevent="getQuote"><label>报价数量<input v-model.number="quoteQty" type="number" min="1" max="1000000" step="1" :disabled="quotePending||pending" required /></label><el-button native-type="submit" :disabled="!uuid(context.storeId)||quotePending||pending" :loading="quotePending">获取 Mock 报价</el-button></form><ErrorPanel v-if="quoteError" :error="quoteError" title="报价未取得" /><dl v-if="quote" class="order-facts"><div><dt>商品单价 / 运费 / 费用</dt><dd>{{ formatFen(quote.unitPriceFen) }} / {{ formatFen(quote.shippingFen) }} / {{ formatFen(quote.feeFen) }}</dd></div><div><dt>到手采购总价 · CNY</dt><dd class="detail-money">{{ formatFen(quote.totalFen) }}</dd></div><div><dt>有效期（上海）</dt><dd>{{ shanghaiTime(quote.expiresAt) }}</dd></div><div><dt>密文能力 / 地区支持</dt><dd>{{ quote.cipherSupported?'支持':'不支持' }} / {{ quote.regionSupported?'支持':'不支持' }}</dd></div><div><dt>库存 / 最小起订</dt><dd>{{ quote.stock }} / {{ quote.minimumQty }}</dd></div></dl><form v-if="config&&session.can('sourcing.manage')" class="policy-form mock-config" @submit.prevent="configConfirm=true"><label>单价（分）<input v-model.number="config.unitPriceFen" type="number" min="0" max="1000000000" step="1" required :disabled="pending||quotePending" /></label><label>运费（分）<input v-model.number="config.shippingFen" type="number" min="0" max="1000000000" step="1" required :disabled="pending||quotePending" /></label><label>库存<input v-model.number="config.stock" type="number" min="0" max="1000000" step="1" required :disabled="pending||quotePending" /></label><label>最小起订<input v-model.number="config.minimumQty" type="number" min="1" max="1000000" step="1" required :disabled="pending||quotePending" /></label><label>报价有效秒数<input v-model.number="config.quoteTtlSeconds" type="number" min="1" max="3600" step="1" required :disabled="pending||quotePending" /></label><label>模拟故障<select v-model="config.fault" :disabled="pending||quotePending"><option v-for="fault in offerFaults" :key="fault" :value="fault">{{ faultNames[fault] }}</option></select></label><fieldset><legend>支持密文履约的平台</legend><label class="checkbox-label"><input v-model="config.cipherPlatforms" type="checkbox" value="TAOBAO" :disabled="pending||quotePending" />淘宝 Mock</label><label class="checkbox-label"><input v-model="config.cipherPlatforms" type="checkbox" value="DOUYIN" :disabled="pending||quotePending" />抖店 Mock</label></fieldset><fieldset><legend>可售区域</legend><label class="checkbox-label"><input v-model="config.regions" type="checkbox" value="CN" :disabled="pending||quotePending" />CN</label></fieldset><el-button native-type="submit" :disabled="pending||quotePending||!contract<OfferConfig>('M2OfferConfig')(config)">保存 Mock 配置（版本 {{ config.version }}）</el-button></form></section>
-    <ProcurementRulePanel v-if="sourcing" :store-id="filters.storeId??''" :item-id="itemId" />
+    <ProcurementRulePanel v-if="sourcing" :store-id="context.storeId" :item-id="context.itemId" />
     <el-dialog v-model="configConfirm" title="确认修改 Mock 货源配置" width="480px" :close-on-click-modal="false" :close-on-press-escape="!pending" :show-close="!pending"><p>修改价格、库存或故障会使已有报价需要重新核验，可能阻塞后续采购。此操作仅修改当前租户的合成数据。</p><ErrorPanel v-if="mutationError" :error="mutationError" /><template #footer><el-button :disabled="pending" @click="configConfirm=false">取消</el-button><el-button type="primary" :disabled="pending" :loading="pending" @click="saveConfig">确认保存</el-button></template></el-dialog>
   </div>
 </template>
